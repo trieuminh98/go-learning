@@ -9,7 +9,7 @@ import (
 	"go-learning/internal/api"
 	"go-learning/internal/env"
 	"go-learning/internal/logic"
-	"go-learning/internal/repository/memory"
+	"go-learning/internal/repository"
 )
 
 // Config holds runtime configuration parameters for the application.
@@ -73,13 +73,12 @@ func main() {
 		IdleTimeout:  time.Duration(env.GetInt("SERVER_IDLE_TIMEOUT_SECONDS", 120)) * time.Second,
 	}
 
-	// 2. Initialize repository layer (in-memory implementation)
-	userRepo := memory.NewUserRepository()
-	truckRepo := memory.NewTruckRepository()
+	// 2. Initialize storage aggregate container
+	storage := repository.NewStorage()
 
-	// 3. Initialize logic services with repository dependencies injected
-	userService := logic.NewUserService(userRepo)
-	truckService := logic.NewTruckService(truckRepo)
+	// 3. Initialize logic services with only the specific repository each requires
+	userService := logic.NewUserService(storage.Users)
+	truckService := logic.NewTruckService(storage.Trucks)
 
 	// 4. Instantiate Application composition root
 	app := NewApplication(cfg, userService, truckService)
