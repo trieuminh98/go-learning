@@ -8,14 +8,16 @@ Gateway → API → Logic → Core
 
 ## Cấu trúc thư mục (Standard Go Project Layout)
 
-Toàn bộ repository chỉ có duy nhất một điểm khởi chạy `main.go` tại `cmd/api/`:
+Phân định rạch ròi giữa các điểm khởi chạy (`cmd/`), mã nguồn ứng dụng đóng gói (`internal/`), và các thư mục phụ trợ:
 
 ```text
 go-learning/
 ├── cmd/
-│   └── api/
-│       └── main.go               # Entrypoint duy nhất: bootstrap & wiring dependencies
-├── internal/
+│   ├── api/
+│   │   └── main.go               # HTTP API entrypoint: bootstrap, wiring & start server
+│   └── migrate/
+│       └── main.go               # Database migration CLI entrypoint
+├── internal/                     # Private application packages (Go compiler boundary)
 │   ├── gateway/
 │   │   └── middleware.go         # Gateway: Inbound Auth, Request ID, Logging
 │   ├── api/
@@ -30,9 +32,23 @@ go-learning/
 │       ├── truck.go              # Core: Truck entity & invariants
 │       ├── user.go               # Core: User entity (pure Go, no JSON tags)
 │       └── errors.go             # Core: Pure domain errors
+├── migrations/                   # SQL schema migrations (up/down)
+├── docs/                         # OpenAPI / Swagger specs
+├── scripts/                      # Build & deployment helper scripts
+├── bin/                          # Compiled binaries (git-ignored)
+├── .gitignore
 ├── go.mod
 └── README.md
 ```
+
+### Ranh giới quan trọng: Repository Structure ≠ Application Architecture
+
+- **Repository Structure (Tổ chức vật lý trên đĩa):**
+  - `cmd/`: Chỉ chứa các file `main.go` mỏng làm composition root.
+  - `internal/`: Ranh giới đóng gói của Go compiler (ngăn package ngoài import). Không phải là một tầng kiến trúc.
+  - `migrations/`, `docs/`, `scripts/`, `bin/`: Tài nguyên và công cụ hỗ trợ vòng đời ứng dụng.
+- **Application Architecture (Ranh giới luồng xử lý bên trong `internal/`):**
+  - `Gateway` → `API` → `Logic` → `Core` (phụ thuộc 1 chiều, thuần Go, zero dependency ở Core).
 
 ## Ranh giới trách nhiệm (Layer Boundaries)
 
