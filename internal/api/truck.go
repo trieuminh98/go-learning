@@ -1,8 +1,6 @@
 package api
 
 import (
-	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -21,14 +19,41 @@ func NewTruckHandler(service *logic.TruckService) *TruckHandler {
 	return &TruckHandler{service: service}
 }
 
+// CreateTruckRequest is the API DTO for incoming truck creation.
+type CreateTruckRequest struct {
+	ID          string `json:"id"`
+	Capacity    int    `json:"capacity"`
+	CurrentLoad int    `json:"current_load"`
+}
+
+// TruckResponse is the API DTO for outgoing truck responses.
+type TruckResponse struct {
+	ID          string `json:"id"`
+	Capacity    int    `json:"capacity"`
+	CurrentLoad int    `json:"current_load"`
+}
+
+func toTruckResponse(t core.Truck) TruckResponse {
+	return TruckResponse{
+		ID:          t.ID,
+		Capacity:    t.Capacity,
+		CurrentLoad: t.CurrentLoad,
+	}
+}
+
 // ListTrucks lists all trucks.
 func (h *TruckHandler) ListTrucks(w http.ResponseWriter, r *http.Request) {
 	trucks, err := h.service.ListTrucks(r.Context())
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to list trucks"})
+		writeJSONError(w, http.StatusInternalServerError, "failed to list trucks")
 		return
 	}
-	writeJSON(w, http.StatusOK, trucks)
+
+	resp := make([]TruckResponse, 0, len(trucks))
+	for _, t := range trucks {
+		resp = append(resp, toTruckResponse(t))
+	}
+	_ = writeJSON(w, http.StatusOK, resp)
 }
 
 // GetTruck translates HTTP requests to TruckService calls.
@@ -38,47 +63,37 @@ func (h *TruckHandler) GetTruck(w http.ResponseWriter, r *http.Request) {
 		id = r.PathValue("id")
 	}
 	if id == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "missing truck id in path"})
+		writeJSONError(w, http.StatusBadRequest, "missing truck id in path")
 		return
 	}
 
 	truck, err := h.service.GetTruck(r.Context(), id)
 	if err != nil {
-		switch {
-		case errors.Is(err, core.ErrInvalidTruckID):
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
-		case errors.Is(err, core.ErrTruckNotFound):
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: err.Error()})
-		default:
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		}
+		MapDomainErrorToHTTP(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, truck)
+	_ = writeJSON(w, http.StatusOK, toTruckResponse(truck))
 }
 
 // CreateTruck parses payload and forwards to TruckService.
 func (h *TruckHandler) CreateTruck(w http.ResponseWriter, r *http.Request) {
-	var t core.Truck
-	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid json payload: " + err.Error()})
+	var input CreateTruckRequest
+	if err := readJSON(w, r, &input); err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if err := h.service.CreateTruck(r.Context(), t); err != nil {
-		switch {
-		case errors.Is(err, core.ErrDuplicateTruckID):
-			writeJSON(w, http.StatusConflict, errorResponse{Error: err.Error()})
-		case errors.Is(err, core.ErrInvalidTruckID),
-			errors.Is(err, core.ErrInvalidCapacity),
-			errors.Is(err, core.ErrOverloaded):
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
-		default:
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		}
+	entity := core.Truck{
+		ID:          input.ID,
+		Capacity:    input.Capacity,
+		CurrentLoad: input.CurrentLoad,
+	}
+
+	if err := h.service.CreateTruck(r.Context(), entity); err != nil {
+		MapDomainErrorToHTTP(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, t)
+	_ = writeJSON(w, http.StatusCreated, toTruckResponse(entity))
 }

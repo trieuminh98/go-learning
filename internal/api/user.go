@@ -1,8 +1,6 @@
 package api
 
 import (
-	"encoding/json"
-	"errors"
 	"net/http"
 
 	"go-learning/internal/core"
@@ -44,7 +42,7 @@ func toUserResponse(u core.User) UserResponse {
 func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.service.ListUsers(r.Context())
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to list users"})
+		writeJSONError(w, http.StatusInternalServerError, "failed to list users")
 		return
 	}
 
@@ -52,15 +50,15 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	for _, u := range users {
 		resp = append(resp, toUserResponse(u))
 	}
-	writeJSON(w, http.StatusOK, resp)
+	_ = writeJSON(w, http.StatusOK, resp)
 }
 
 // CreateUser handles user creation by delegating to UserService.
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var input CreateUserRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "malformed JSON: " + err.Error()})
+	if err := readJSON(w, r, &input); err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -71,17 +69,9 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	created, err := h.service.CreateUser(r.Context(), userEntity)
 	if err != nil {
-		switch {
-		case errors.Is(err, core.ErrInvalidFirstName),
-			errors.Is(err, core.ErrInvalidLastName):
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
-		case errors.Is(err, core.ErrUserAlreadyExists):
-			writeJSON(w, http.StatusConflict, errorResponse{Error: err.Error()})
-		default:
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "unexpected server error"})
-		}
+		MapDomainErrorToHTTP(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, toUserResponse(created))
+	_ = writeJSON(w, http.StatusCreated, toUserResponse(created))
 }
