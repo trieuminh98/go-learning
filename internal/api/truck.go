@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+
 	"go-learning/internal/core"
 	"go-learning/internal/logic"
 )
@@ -17,7 +19,10 @@ func ListTrucksHandler(w http.ResponseWriter, r *http.Request) {
 
 // GetTruckHandler translates HTTP requests to Logic calls and maps results to HTTP responses.
 func GetTruckHandler(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		id = r.PathValue("id")
+	}
 	if id == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "missing truck id in path"})
 		return
