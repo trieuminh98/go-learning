@@ -62,26 +62,35 @@ Mặc định server sẽ lắng nghe tại cổng `:8080`.
 
 ## Kiểm thử qua cURL
 
-### 1. Request hợp lệ (200 OK)
+### 1. Root / Welcome (`GET /`)
+```bash
+curl -i -H "Authorization: Bearer secret-token" http://localhost:8080/
+```
+
+### 2. Danh sách xe tải (`GET /trucks`)
+```bash
+curl -i -H "Authorization: Bearer secret-token" http://localhost:8080/trucks
+```
+
+### 3. Lấy thông tin một xe tải (`GET /trucks/{id}`)
 ```bash
 curl -i -H "Authorization: Bearer secret-token" http://localhost:8080/trucks/1
 ```
 
-Response:
-```json
-HTTP/1.1 200 OK
-Content-Type: application/json
-X-Request-Id: req-...
-
-{"id":"1","capacity":5000,"current_load":1200}
-```
-
-### 2. Thiếu Auth header (401 Unauthorized do Gateway chặn)
+### 4. Tạo xe tải mới (`POST /trucks`)
 ```bash
-curl -i http://localhost:8080/trucks/1
+curl -i -X POST http://localhost:8080/trucks \
+  -H "Authorization: Bearer secret-token" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"3","capacity":8000,"current_load":0}'
 ```
 
-### 3. Không tìm thấy tài nguyên (404 Not Found do API map từ domain error)
+### 5. Thiếu Auth header (401 Unauthorized do Gateway chặn)
+```bash
+curl -i http://localhost:8080/trucks
+```
+
+### 6. Không tìm thấy tài nguyên (404 Not Found do API map từ domain error)
 ```bash
 curl -i -H "Authorization: Bearer secret-token" http://localhost:8080/trucks/999
 ```
