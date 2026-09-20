@@ -19,12 +19,16 @@ go-learning/
 │   ├── gateway/
 │   │   └── middleware.go         # Gateway: Inbound Auth, Request ID, Logging
 │   ├── api/
-│   │   ├── handler.go            # API: HTTP Handlers, parse params, map response/status
+│   │   ├── common.go             # API: Common response helpers (writeJSON, errorResponse, welcome)
+│   │   ├── truck.go              # API: Truck HTTP handlers & logic error mapping
+│   │   ├── user.go               # API: User HTTP handlers & JSON DTOs (io.Writer composition)
 │   │   └── router.go             # API: Route registration (http.ServeMux)
 │   ├── logic/
-│   │   └── truck.go              # Logic: Use-case orchestration (thuần Go, không dính HTTP)
+│   │   ├── truck.go              # Logic: Truck use-case orchestration (sync.RWMutex)
+│   │   └── user.go               # Logic: User use-case orchestration (sync.RWMutex)
 │   └── core/
-│       ├── truck.go              # Core: Domain entity & business invariants
+│       ├── truck.go              # Core: Truck entity & invariants
+│       ├── user.go               # Core: User entity (pure Go, no JSON tags)
 │       └── errors.go             # Core: Pure domain errors
 ├── go.mod
 └── README.md
@@ -93,6 +97,37 @@ curl -i http://localhost:8080/trucks
 ### 6. Không tìm thấy tài nguyên (404 Not Found do API map từ domain error)
 ```bash
 curl -i -H "Authorization: Bearer secret-token" http://localhost:8080/trucks/999
+```
+
+### 7. User JSON API (`GET /users` & `POST /users`)
+
+#### Danh sách người dùng:
+```bash
+curl -i -H "Authorization: Bearer secret-token" http://localhost:8080/users
+```
+
+#### Tạo mới người dùng (snake_case JSON DTO):
+```bash
+curl -i -X POST http://localhost:8080/users \
+  -H "Authorization: Bearer secret-token" \
+  -H "Content-Type: application/json" \
+  -d '{"first_name":"John","last_name":"Doe"}'
+```
+
+#### Trùng lặp người dùng (409 Conflict):
+```bash
+curl -i -X POST http://localhost:8080/users \
+  -H "Authorization: Bearer secret-token" \
+  -H "Content-Type: application/json" \
+  -d '{"first_name":"John","last_name":"Doe"}'
+```
+
+#### Thiếu trường bắt buộc (400 Bad Request từ Core validation):
+```bash
+curl -i -X POST http://localhost:8080/users \
+  -H "Authorization: Bearer secret-token" \
+  -H "Content-Type: application/json" \
+  -d '{"last_name":"Doe"}'
 ```
 
 ## Kiểm tra chất lượng mã nguồn

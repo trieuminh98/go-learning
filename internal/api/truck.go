@@ -9,18 +9,6 @@ import (
 	"go-learning/internal/logic"
 )
 
-type errorResponse struct {
-	Error string `json:"error"`
-}
-
-// WelcomeHandler handles root health / welcome requests.
-func WelcomeHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{
-		"message": "Welcome to Truck Management API",
-		"status":  "healthy",
-	})
-}
-
 // ListTrucksHandler lists all trucks.
 func ListTrucksHandler(w http.ResponseWriter, r *http.Request) {
 	trucks := logic.ListTrucks()
@@ -74,10 +62,4 @@ func CreateTruckHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, t)
-}
-
-func writeJSON(w http.ResponseWriter, status int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(data)
 }
