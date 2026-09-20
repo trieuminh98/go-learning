@@ -11,14 +11,28 @@ import (
 	"go-learning/internal/logic"
 )
 
-// ListTrucksHandler lists all trucks.
-func ListTrucksHandler(w http.ResponseWriter, r *http.Request) {
-	trucks := logic.ListTrucks()
+// TruckHandler handles HTTP truck requests and maps them to logic.TruckService.
+type TruckHandler struct {
+	service *logic.TruckService
+}
+
+// NewTruckHandler creates a new TruckHandler.
+func NewTruckHandler(service *logic.TruckService) *TruckHandler {
+	return &TruckHandler{service: service}
+}
+
+// ListTrucks lists all trucks.
+func (h *TruckHandler) ListTrucks(w http.ResponseWriter, r *http.Request) {
+	trucks, err := h.service.ListTrucks(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to list trucks"})
+		return
+	}
 	writeJSON(w, http.StatusOK, trucks)
 }
 
-// GetTruckHandler translates HTTP requests to Logic calls and maps results to HTTP responses.
-func GetTruckHandler(w http.ResponseWriter, r *http.Request) {
+// GetTruck translates HTTP requests to TruckService calls.
+func (h *TruckHandler) GetTruck(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
 		id = r.PathValue("id")
@@ -28,7 +42,7 @@ func GetTruckHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	truck, err := logic.GetTruck(id)
+	truck, err := h.service.GetTruck(r.Context(), id)
 	if err != nil {
 		switch {
 		case errors.Is(err, core.ErrInvalidTruckID):
@@ -44,15 +58,15 @@ func GetTruckHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, truck)
 }
 
-// CreateTruckHandler parses payload and forwards to Logic layer.
-func CreateTruckHandler(w http.ResponseWriter, r *http.Request) {
+// CreateTruck parses payload and forwards to TruckService.
+func (h *TruckHandler) CreateTruck(w http.ResponseWriter, r *http.Request) {
 	var t core.Truck
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid json payload: " + err.Error()})
 		return
 	}
 
-	if err := logic.CreateTruck(t); err != nil {
+	if err := h.service.CreateTruck(r.Context(), t); err != nil {
 		switch {
 		case errors.Is(err, core.ErrDuplicateTruckID):
 			writeJSON(w, http.StatusConflict, errorResponse{Error: err.Error()})

@@ -1,59 +1,35 @@
 package logic
 
 import (
-	"fmt"
-	"sort"
-	"strings"
-	"sync"
+	"context"
 
 	"go-learning/internal/core"
 )
 
-var (
-	userMu    sync.RWMutex
-	mockUsers = map[string]core.User{}
-	userSeq   = 0
-)
-
-// ListUsers returns all users currently stored.
-// Notice: Logic does not know http.Request, http.ResponseWriter, or JSON.
-func ListUsers() []core.User {
-	userMu.RLock()
-	defer userMu.RUnlock()
-
-	users := make([]core.User, 0, len(mockUsers))
-	for _, u := range mockUsers {
-		users = append(users, u)
-	}
-
-	sort.Slice(users, func(i, j int) bool {
-		return users[i].ID < users[j].ID
-	})
-
-	return users
+// UserService orchestrates user use-cases using a UserRepository.
+type UserService struct {
+	repo UserRepository
 }
 
-// CreateUser coordinates domain validation, duplicate verification, and persistence.
-func CreateUser(u core.User) (core.User, error) {
+// NewUserService constructs a UserService with its required repository dependency.
+func NewUserService(repo UserRepository) *UserService {
+	return &UserService{
+		repo: repo,
+	}
+}
+
+// ListUsers returns all users currently stored via the repository.
+func (s *UserService) ListUsers(ctx context.Context) ([]core.User, error) {
+	return s.repo.List(ctx)
+}
+
+// CreateUser coordinates domain validation and delegates storage to the repository.
+func (s *UserService) CreateUser(ctx context.Context, u core.User) (core.User, error) {
 	// 1. Domain invariant validation
 	if err := u.Validate(); err != nil {
 		return core.User{}, err
 	}
 
-	userMu.Lock()
-	defer userMu.Unlock()
-
-	// 2. Business uniqueness check
-	for _, existing := range mockUsers {
-		if strings.EqualFold(existing.FirstName, u.FirstName) && strings.EqualFold(existing.LastName, u.LastName) {
-			return core.User{}, core.ErrUserAlreadyExists
-		}
-	}
-
-	// 3. Generate ID and save
-	userSeq++
-	u.ID = fmt.Sprintf("%d", userSeq)
-	mockUsers[u.ID] = u
-
-	return u, nil
+	// 2. Delegate persistence to repository
+	return s.repo.Create(ctx, u)
 }

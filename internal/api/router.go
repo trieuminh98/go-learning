@@ -7,12 +7,22 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"go-learning/internal/gateway"
+	"go-learning/internal/logic"
 )
+
+// RouterConfig bundles the handler dependencies needed to build the API route tree.
+type RouterConfig struct {
+	UserService  *logic.UserService
+	TruckService *logic.TruckService
+}
 
 // NewRouter builds and returns the application HTTP handler using Chi.
 // Return type is http.Handler, keeping http.Server decoupled from Chi.
-func NewRouter() http.Handler {
+func NewRouter(cfg RouterConfig) http.Handler {
 	r := chi.NewRouter()
+
+	userHandler := NewUserHandler(cfg.UserService)
+	truckHandler := NewTruckHandler(cfg.TruckService)
 
 	// 1. Gateway global cross-cutting middleware stack
 	r.Use(gateway.RecoveryMiddleware)
@@ -41,13 +51,13 @@ func NewRouter() http.Handler {
 			private.Get("/private/profile", ProtectedExampleHandler)
 
 			// Trucks resources
-			private.Get("/trucks", ListTrucksHandler)
-			private.Get("/trucks/{id}", GetTruckHandler)
-			private.Post("/trucks", CreateTruckHandler)
+			private.Get("/trucks", truckHandler.ListTrucks)
+			private.Get("/trucks/{id}", truckHandler.GetTruck)
+			private.Post("/trucks", truckHandler.CreateTruck)
 
 			// Users resources
-			private.Get("/users", ListUsersHandler)
-			private.Post("/users", CreateUserHandler)
+			private.Get("/users", userHandler.ListUsers)
+			private.Post("/users", userHandler.CreateUser)
 		})
 	})
 

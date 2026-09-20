@@ -9,15 +9,23 @@ import (
 	"go-learning/internal/logic"
 )
 
+// UserHandler handles HTTP user requests and maps them to logic.UserService.
+type UserHandler struct {
+	service *logic.UserService
+}
+
+// NewUserHandler creates a new UserHandler.
+func NewUserHandler(service *logic.UserService) *UserHandler {
+	return &UserHandler{service: service}
+}
+
 // CreateUserRequest is the DTO for incoming user creation payload.
-// Demonstrates: External snake_case JSON -> DTO struct tags -> Idiomatic Go fields.
 type CreateUserRequest struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 }
 
 // UserResponse is the DTO for outgoing user JSON serialization.
-// Keeps external API JSON contract separated from domain core.User entity.
 type UserResponse struct {
 	ID        string `json:"id"`
 	FirstName string `json:"first_name"`
@@ -32,9 +40,14 @@ func toUserResponse(u core.User) UserResponse {
 	}
 }
 
-// ListUsersHandler returns all users as JSON array.
-func ListUsersHandler(w http.ResponseWriter, r *http.Request) {
-	users := logic.ListUsers()
+// ListUsers returns all users as a JSON array.
+func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := h.service.ListUsers(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to list users"})
+		return
+	}
+
 	resp := make([]UserResponse, 0, len(users))
 	for _, u := range users {
 		resp = append(resp, toUserResponse(u))
@@ -42,29 +55,21 @@ func ListUsersHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// CreateUserHandler handles user creation demonstrating:
-// 1. Decode JSON from r.Body via DTO
-// 2. Translate DTO to pure core.User domain entity
-// 3. Delegate to Logic layer (logic.CreateUser)
-// 4. Map Logic/Core errors to standard HTTP status codes
-// 5. Interface composition: http.ResponseWriter satisfies io.Writer passed to json.NewEncoder
-func CreateUserHandler(w http.ResponseWriter, r *http.Request) {
+// CreateUser handles user creation by delegating to UserService.
+func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var input CreateUserRequest
 
-	// Decode request body stream
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "malformed JSON: " + err.Error()})
 		return
 	}
 
-	// Translate DTO -> Domain Entity
 	userEntity := core.User{
 		FirstName: input.FirstName,
 		LastName:  input.LastName,
 	}
 
-	// Call Logic layer
-	created, err := logic.CreateUser(userEntity)
+	created, err := h.service.CreateUser(r.Context(), userEntity)
 	if err != nil {
 		switch {
 		case errors.Is(err, core.ErrInvalidFirstName),
@@ -78,7 +83,5 @@ func CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Note on interface composition:
-	// http.ResponseWriter satisfies io.Writer required by json.NewEncoder(w).
 	writeJSON(w, http.StatusCreated, toUserResponse(created))
 }

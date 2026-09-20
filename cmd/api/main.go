@@ -8,6 +8,8 @@ import (
 
 	"go-learning/internal/api"
 	"go-learning/internal/env"
+	"go-learning/internal/logic"
+	"go-learning/internal/repository/memory"
 )
 
 // Config holds runtime configuration parameters for the application.
@@ -20,13 +22,27 @@ type Config struct {
 
 // Application holds runtime dependencies and application lifecycle methods.
 type Application struct {
-	config Config
+	config       Config
+	userService  *logic.UserService
+	truckService *logic.TruckService
+}
+
+// NewApplication constructs the Application root with injected dependencies.
+func NewApplication(cfg Config, userService *logic.UserService, truckService *logic.TruckService) *Application {
+	return &Application{
+		config:       cfg,
+		userService:  userService,
+		truckService: truckService,
+	}
 }
 
 // routes builds and returns the application's HTTP handler tree.
 // Notice: Returns http.Handler interface, completely decoupled from any concrete router type.
 func (app *Application) routes() http.Handler {
-	return api.NewRouter()
+	return api.NewRouter(api.RouterConfig{
+		UserService:  app.userService,
+		TruckService: app.truckService,
+	})
 }
 
 // run configures and starts the HTTP server.
@@ -49,6 +65,7 @@ func (app *Application) run() error {
 }
 
 func main() {
+	// 1. Load runtime configuration
 	cfg := Config{
 		Addr:         env.GetString("SERVER_ADDR", ":8080"),
 		ReadTimeout:  time.Duration(env.GetInt("SERVER_READ_TIMEOUT_SECONDS", 5)) * time.Second,
@@ -56,10 +73,18 @@ func main() {
 		IdleTimeout:  time.Duration(env.GetInt("SERVER_IDLE_TIMEOUT_SECONDS", 120)) * time.Second,
 	}
 
-	app := &Application{
-		config: cfg,
-	}
+	// 2. Initialize repository layer (in-memory implementation)
+	userRepo := memory.NewUserRepository()
+	truckRepo := memory.NewTruckRepository()
 
+	// 3. Initialize logic services with repository dependencies injected
+	userService := logic.NewUserService(userRepo)
+	truckService := logic.NewTruckService(truckRepo)
+
+	// 4. Instantiate Application composition root
+	app := NewApplication(cfg, userService, truckService)
+
+	// 5. Start server
 	if err := app.run(); err != nil {
 		log.Fatalf("server failure: %v", err)
 	}
