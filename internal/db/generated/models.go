@@ -8,6 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Post struct {
+	ID        int64              `json:"id"`
+	UserID    int64              `json:"user_id"`
+	Title     string             `json:"title"`
+	Content   string             `json:"content"`
+	Tags      []string           `json:"tags"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Truck struct {
 	ID          string             `json:"id"`
 	Capacity    int32              `json:"capacity"`

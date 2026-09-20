@@ -27,15 +27,19 @@ func MapDomainErrorToHTTP(w http.ResponseWriter, err error) {
 		errors.Is(err, core.ErrInvalidLastName),
 		errors.Is(err, core.ErrInvalidTruckID),
 		errors.Is(err, core.ErrInvalidCapacity),
-		errors.Is(err, core.ErrOverloaded):
+		errors.Is(err, core.ErrOverloaded),
+		errors.Is(err, core.ErrInvalidTitle),
+		errors.Is(err, core.ErrInvalidContent):
 		writeJSONError(w, http.StatusBadRequest, err.Error())
 
 	case errors.Is(err, core.ErrUserAlreadyExists),
 		errors.Is(err, core.ErrDuplicateTruckID):
 		writeJSONError(w, http.StatusConflict, err.Error())
 
-	case errors.Is(err, core.ErrTruckNotFound):
+	case errors.Is(err, core.ErrTruckNotFound),
+		errors.Is(err, core.ErrUserNotFound):
 		writeJSONError(w, http.StatusNotFound, err.Error())
+
 
 	default:
 		writeJSONError(w, http.StatusInternalServerError, "internal server error")

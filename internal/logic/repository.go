@@ -19,3 +19,9 @@ type TruckRepository interface {
 	GetByID(ctx context.Context, id string) (core.Truck, error)
 	Create(ctx context.Context, truck core.Truck) error
 }
+
+// PostRepository defines the persistence contract required by the post domain logic.
+type PostRepository interface {
+	List(ctx context.Context) ([]core.Post, error)
+	Create(ctx context.Context, post core.Post) (core.Post, error)
+}

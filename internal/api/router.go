@@ -14,6 +14,7 @@ import (
 type RouterConfig struct {
 	UserService  *logic.UserService
 	TruckService *logic.TruckService
+	PostService  *logic.PostService
 }
 
 // NewRouter builds and returns the application HTTP handler using Chi.
@@ -23,6 +24,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	userHandler := NewUserHandler(cfg.UserService)
 	truckHandler := NewTruckHandler(cfg.TruckService)
+	postHandler := NewPostHandler(cfg.PostService)
 
 	// 1. Gateway global cross-cutting middleware stack
 	r.Use(gateway.RecoveryMiddleware)
@@ -58,8 +60,13 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			// Users resources
 			private.Get("/users", userHandler.ListUsers)
 			private.Post("/users", userHandler.CreateUser)
+
+			// Posts resources
+			private.Get("/posts", postHandler.ListPosts)
+			private.Post("/posts", postHandler.CreatePost)
 		})
 	})
+
 
 	return r
 }

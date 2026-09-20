@@ -38,14 +38,16 @@ type Application struct {
 	config       Config
 	userService  *logic.UserService
 	truckService *logic.TruckService
+	postService  *logic.PostService
 }
 
 // NewApplication constructs the Application root with injected dependencies.
-func NewApplication(cfg Config, userService *logic.UserService, truckService *logic.TruckService) *Application {
+func NewApplication(cfg Config, userService *logic.UserService, truckService *logic.TruckService, postService *logic.PostService) *Application {
 	return &Application{
 		config:       cfg,
 		userService:  userService,
 		truckService: truckService,
+		postService:  postService,
 	}
 }
 
@@ -55,8 +57,10 @@ func (app *Application) routes() http.Handler {
 	return api.NewRouter(api.RouterConfig{
 		UserService:  app.userService,
 		TruckService: app.truckService,
+		PostService:  app.postService,
 	})
 }
+
 
 // run configures and starts the HTTP server.
 func (app *Application) run() error {
@@ -119,12 +123,14 @@ func main() {
 	// 4. Initialize logic services with only the specific repository each requires
 	userService := logic.NewUserService(storage.Users)
 	truckService := logic.NewTruckService(storage.Trucks)
+	postService := logic.NewPostService(storage.Posts)
 
 	// 5. Instantiate Application composition root
-	app := NewApplication(cfg, userService, truckService)
+	app := NewApplication(cfg, userService, truckService, postService)
 
 	// 6. Start server
 	if err := app.run(); err != nil {
 		log.Fatalf("server failure: %v", err)
 	}
+
 }

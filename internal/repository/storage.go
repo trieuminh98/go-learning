@@ -13,6 +13,7 @@ import (
 type Storage struct {
 	Users  logic.UserRepository
 	Trucks logic.TruckRepository
+	Posts  logic.PostRepository
 }
 
 // NewStorage initializes and bundles concrete in-memory repository implementations.
@@ -20,6 +21,7 @@ func NewStorage() Storage {
 	return Storage{
 		Users:  memory.NewUserRepository(),
 		Trucks: memory.NewTruckRepository(),
+		Posts:  memory.NewPostRepository(),
 	}
 }
 
@@ -28,5 +30,6 @@ func NewPostgresStorage(queries *db.Queries) Storage {
 	return Storage{
 		Users:  postgres.NewUserRepository(queries),
 		Trucks: postgres.NewTruckRepository(queries),
+		Posts:  postgres.NewPostRepository(queries),
 	}
 }

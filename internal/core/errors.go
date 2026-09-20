@@ -14,4 +14,7 @@ var (
 	ErrInvalidLastName   = errors.New("last name must not be empty")
 	ErrUserAlreadyExists = errors.New("user already exists")
 	ErrUserNotFound      = errors.New("user not found")
+
+	ErrInvalidTitle   = errors.New("title must not be empty")
+	ErrInvalidContent = errors.New("content must not be empty")
 )
