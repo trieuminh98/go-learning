@@ -1,16 +1,28 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
 	"time"
 
 	"go-learning/internal/api"
+	"go-learning/internal/db"
+	generated "go-learning/internal/db/generated"
 	"go-learning/internal/env"
 	"go-learning/internal/logic"
 	"go-learning/internal/repository"
 )
+
+// DBConfig holds PostgreSQL connection pool configuration.
+type DBConfig struct {
+	URL         string
+	MaxConns    int32
+	MinConns    int32
+	MaxIdleTime time.Duration
+	MaxLifetime time.Duration
+}
 
 // Config holds runtime configuration parameters for the application.
 type Config struct {
@@ -18,6 +30,7 @@ type Config struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
+	DB           DBConfig
 }
 
 // Application holds runtime dependencies and application lifecycle methods.
@@ -71,19 +84,46 @@ func main() {
 		ReadTimeout:  time.Duration(env.GetInt("SERVER_READ_TIMEOUT_SECONDS", 5)) * time.Second,
 		WriteTimeout: time.Duration(env.GetInt("SERVER_WRITE_TIMEOUT_SECONDS", 10)) * time.Second,
 		IdleTimeout:  time.Duration(env.GetInt("SERVER_IDLE_TIMEOUT_SECONDS", 120)) * time.Second,
+		DB: DBConfig{
+			URL:         env.GetString("DB_URL", "postgres://postgres:password@localhost:5433/golearning?sslmode=disable"),
+			MaxConns:    int32(env.GetInt("DB_MAX_CONNS", 10)),
+			MinConns:    int32(env.GetInt("DB_MIN_CONNS", 2)),
+			MaxIdleTime: time.Duration(env.GetInt("DB_MAX_CONN_IDLE_TIME_SECONDS", 900)) * time.Second,
+			MaxLifetime: time.Duration(env.GetInt("DB_MAX_CONN_LIFETIME_SECONDS", 3600)) * time.Second,
+		},
 	}
 
-	// 2. Initialize storage aggregate container
-	storage := repository.NewStorage()
+	// 2. Initialize PostgreSQL connection pool with bounded startup timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	// 3. Initialize logic services with only the specific repository each requires
+	pool, err := db.NewPool(
+		ctx,
+		cfg.DB.URL,
+		cfg.DB.MaxConns,
+		cfg.DB.MinConns,
+		cfg.DB.MaxIdleTime,
+		cfg.DB.MaxLifetime,
+	)
+	if err != nil {
+		log.Fatalf("database connection failure: %v", err)
+	}
+	defer pool.Close() // Creator owns cleanup
+
+	log.Printf("Connected to PostgreSQL pool (MaxConns=%d, MinConns=%d)", cfg.DB.MaxConns, cfg.DB.MinConns)
+
+	// 3. Create sqlc Queries and wire PostgreSQL Storage aggregate
+	queries := generated.New(pool)
+	storage := repository.NewPostgresStorage(queries)
+
+	// 4. Initialize logic services with only the specific repository each requires
 	userService := logic.NewUserService(storage.Users)
 	truckService := logic.NewTruckService(storage.Trucks)
 
-	// 4. Instantiate Application composition root
+	// 5. Instantiate Application composition root
 	app := NewApplication(cfg, userService, truckService)
 
-	// 5. Start server
+	// 6. Start server
 	if err := app.run(); err != nil {
 		log.Fatalf("server failure: %v", err)
 	}
