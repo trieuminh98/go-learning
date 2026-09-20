@@ -37,6 +37,7 @@ go-learning/
 ├── docs/                         # OpenAPI / Swagger specs
 ├── scripts/                      # Build & deployment helper scripts
 ├── bin/                          # Compiled binaries (git-ignored)
+├── .air.toml                     # Air hot reload configuration
 ├── .gitignore
 ├── go.mod
 └── README.md
@@ -75,11 +76,23 @@ go-learning/
 
 ## Khởi chạy ứng dụng
 
+### 1. Khởi chạy thông thường:
 ```bash
 go run ./cmd/api
 ```
-
 Mặc định server sẽ lắng nghe tại cổng `:8080`.
+
+### 2. Khởi chạy với Hot Reload (Air):
+Cài đặt Air (nếu chưa có):
+```bash
+go install github.com/air-verse/air@latest
+```
+
+Khởi chạy tiến trình tự động phát hiện thay đổi và rebuild:
+```bash
+air
+```
+Air sẽ tự động biên dịch lại vào `./bin/api` và restart server mỗi khi lưu file `.go` trong `cmd/` hoặc `internal/`.
 
 ## Kiểm thử qua cURL
 
