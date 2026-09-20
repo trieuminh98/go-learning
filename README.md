@@ -1,74 +1,94 @@
-# Go TCP Server
+# Go Learning — Best Practice 4-Layer Architecture
 
-Example TCP server tối giản bằng Go standard library. Protocol theo từng dòng:
+Dự án mẫu (reference template) thể hiện kiến trúc phân lớp chuẩn trong Go, tuân thủ **Standard Go Project Layout** và ranh giới trách nhiệm rõ ràng với chiều phụ thuộc một chiều:
 
 ```text
-PING       -> PONG
-ECHO hello -> hello
-QUIT       -> BYE, rồi đóng connection
+Gateway → API → Logic → Core
 ```
 
-## Chạy server
+## Cấu trúc thư mục (Standard Go Project Layout)
+
+Toàn bộ repository chỉ có duy nhất một điểm khởi chạy `main.go` tại `cmd/api/`:
+
+```text
+go-learning/
+├── cmd/
+│   └── api/
+│       └── main.go               # Entrypoint duy nhất: bootstrap & wiring dependencies
+├── internal/
+│   ├── gateway/
+│   │   └── middleware.go         # Gateway: Inbound Auth, Request ID, Logging
+│   ├── api/
+│   │   ├── handler.go            # API: HTTP Handlers, parse params, map response/status
+│   │   └── router.go             # API: Route registration (http.ServeMux)
+│   ├── logic/
+│   │   └── truck.go              # Logic: Use-case orchestration (thuần Go, không dính HTTP)
+│   └── core/
+│       ├── truck.go              # Core: Domain entity & business invariants
+│       └── errors.go             # Core: Pure domain errors
+├── go.mod
+└── README.md
+```
+
+## Ranh giới trách nhiệm (Layer Boundaries)
+
+1. **Gateway (`internal/gateway`)**:
+   - Chịu trách nhiệm các mối quan tâm cross-cutting (Authentication, Request ID, Structured Logging).
+   - Quyết định request có được phép vào hệ thống hay không (`Can this request enter?`).
+   - Đóng vai trò middleware bọc ngoài `http.Handler`.
+
+2. **API (`internal/api`)**:
+   - Ranh giới giao tiếp HTTP: định tuyến URL, đọc `http.Request`, validate dữ liệu đầu vào.
+   - Gọi tầng Logic và ánh xạ kết quả hoặc lỗi sang mã HTTP status code & JSON response (`Translate HTTP ↔ application calls`).
+   - Tuyệt đối không chứa business rules.
+
+3. **Logic (`internal/logic`)**:
+   - Tầng điều phối luồng nghiệp vụ (`What steps are required to complete this use case?`).
+   - Lấy dữ liệu và áp dụng các quy tắc của tầng Core.
+   - Không chứa bất kỳ khái niệm HTTP nào (không status code, không headers, không `net/http`).
+
+4. **Core (`internal/core`)**:
+   - Trái tim của domain nghiệp vụ (`What is true in the business domain?`).
+   - Chứa structs, invariants validation và domain errors thuần túy.
+   - Không phụ thuộc vào bất kỳ tầng nào khác (Zero external dependency).
+
+## Khởi chạy ứng dụng
 
 ```bash
-go run .
+go run ./cmd/api
 ```
 
-Server mặc định lắng nghe ở cổng `8080`.
+Mặc định server sẽ lắng nghe tại cổng `:8080`.
 
-## Thử bằng netcat
+## Kiểm thử qua cURL
 
-Mở terminal khác:
+### 1. Request hợp lệ (200 OK)
+```bash
+curl -i -H "Authorization: Bearer secret-token" http://localhost:8080/trucks/1
+```
+
+Response:
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+X-Request-Id: req-...
+
+{"id":"1","capacity":5000,"current_load":1200}
+```
+
+### 2. Thiếu Auth header (401 Unauthorized do Gateway chặn)
+```bash
+curl -i http://localhost:8080/trucks/1
+```
+
+### 3. Không tìm thấy tài nguyên (404 Not Found do API map từ domain error)
+```bash
+curl -i -H "Authorization: Bearer secret-token" http://localhost:8080/trucks/999
+```
+
+## Kiểm tra chất lượng mã nguồn
 
 ```bash
-nc localhost 8080
-```
-
-Sau đó nhập từng dòng:
-
-```text
-PING
-ECHO hello
-QUIT
-```
-
-Kết quả:
-
-```text
-PONG
-hello
-BYE
-```
-
-Dừng server bằng `Ctrl+C`.
-
-## TCP server lifecycle
-
-```text
-main
-  --tạo context từ SIGINT/SIGTERM-->
-serve
-  --net.Listen("tcp", address)-->
-listener
-  --Accept() loop-->
-connection
-  --goroutine-->
-handleConnection
-  --read / process / write-->
-close connection
-```
-
-- `net.Listen` tạo `listener`, nơi hệ điều hành gửi các TCP connection mới vào.
-- `Accept()` chạy trong vòng lặp vì server cần nhận nhiều client, không chỉ một client.
-- Mỗi connection chạy trong một goroutine để client chậm không chặn server nhận hay xử lý client khác.
-- `handleConnection` có `defer conn.Close()`, nên mọi đường return đều đóng connection.
-- Mỗi lần read và write đều đặt deadline. Client idle hoặc client không đọc response sẽ không giữ goroutine vô hạn.
-- `signal.NotifyContext` nhận `Ctrl+C` (`SIGINT`) hoặc `SIGTERM`. Khi context bị cancel, server đóng listener, làm `Accept()` trả về và kết thúc accept loop. Connection đang xử lý tự kết thúc khi client xong hoặc deadline hết hạn.
-
-## Kiểm tra
-
-```bash
-go test ./...
-go test -race ./...
 go vet ./...
+go build ./...
 ```
