@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go-learning/internal/api"
+	"go-learning/internal/env"
 )
 
 // Config holds runtime configuration parameters for the application.
@@ -49,10 +50,10 @@ func (app *Application) run() error {
 
 func main() {
 	cfg := Config{
-		Addr:         ":8080",
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:         env.GetString("SERVER_ADDR", ":8080"),
+		ReadTimeout:  time.Duration(env.GetInt("SERVER_READ_TIMEOUT_SECONDS", 5)) * time.Second,
+		WriteTimeout: time.Duration(env.GetInt("SERVER_WRITE_TIMEOUT_SECONDS", 10)) * time.Second,
+		IdleTimeout:  time.Duration(env.GetInt("SERVER_IDLE_TIMEOUT_SECONDS", 120)) * time.Second,
 	}
 
 	app := &Application{

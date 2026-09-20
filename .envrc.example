@@ -1,0 +1,6 @@
+# Environment variables for local development with direnv
+# Run: direnv allow
+export SERVER_ADDR=":3000"
+export SERVER_READ_TIMEOUT_SECONDS="5"
+export SERVER_WRITE_TIMEOUT_SECONDS="10"
+export SERVER_IDLE_TIMEOUT_SECONDS="120"
