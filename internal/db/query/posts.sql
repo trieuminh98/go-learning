@@ -31,3 +31,15 @@ SELECT
     updated_at
 FROM posts
 ORDER BY id ASC;
+
+-- name: GetPostByID :one
+SELECT
+    id,
+    user_id,
+    title,
+    content,
+    tags,
+    created_at,
+    updated_at
+FROM posts
+WHERE id = $1;

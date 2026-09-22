@@ -56,3 +56,8 @@ func (s *PostService) CreatePost(ctx context.Context, input CreatePostInput) (co
 func (s *PostService) ListPosts(ctx context.Context) ([]core.Post, error) {
 	return s.repo.List(ctx)
 }
+
+// GetPost retrieves a single post by its ID.
+func (s *PostService) GetPost(ctx context.Context, id int64) (core.Post, error) {
+	return s.repo.GetByID(ctx, id)
+}

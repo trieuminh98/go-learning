@@ -146,3 +146,20 @@ func (h *PostHandler) ListPosts(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = writeJSON(w, http.StatusOK, resp)
 }
+
+// GetPost handles GET /v1/posts/{postID}.
+func (h *PostHandler) GetPost(w http.ResponseWriter, r *http.Request) {
+	postID, err := readIDParam(r, "postID")
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	post, err := h.service.GetPost(r.Context(), postID)
+	if err != nil {
+		MapDomainErrorToHTTP(w, err)
+		return
+	}
+
+	_ = writeJSON(w, http.StatusOK, toPostResponse(post))
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"go-learning/internal/core"
@@ -77,4 +78,17 @@ func (r *PostRepository) Create(ctx context.Context, p core.Post) (core.Post, er
 	}
 
 	return toCorePost(created), nil
+}
+
+// GetByID fetches a post by its ID from PostgreSQL, mapping pgx.ErrNoRows to core.ErrPostNotFound.
+func (r *PostRepository) GetByID(ctx context.Context, id int64) (core.Post, error) {
+	post, err := r.queries.GetPostByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return core.Post{}, core.ErrPostNotFound
+		}
+		return core.Post{}, err
+	}
+
+	return toCorePost(post), nil
 }

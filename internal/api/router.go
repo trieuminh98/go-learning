@@ -63,9 +63,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 			// Posts resources
 			private.Get("/posts", postHandler.ListPosts)
+			private.Get("/posts/{postID}", postHandler.GetPost)
 			private.Post("/posts", postHandler.CreatePost)
 		})
 	})
+
 
 
 	return r

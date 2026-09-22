@@ -6,8 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
+
 
 // DefaultMaxBodyBytes limits incoming JSON payloads to 1MB.
 const DefaultMaxBodyBytes int64 = 1048576
@@ -72,4 +76,23 @@ func readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	}
 
 	return nil
+}
+
+// readIDParam extracts a positive integer ID parameter from chi routing context or path value.
+// It returns an error if the parameter is missing, not a valid integer, or <= 0.
+func readIDParam(r *http.Request, key string) (int64, error) {
+	param := chi.URLParam(r, key)
+	if param == "" {
+		param = r.PathValue(key)
+	}
+	if param == "" {
+		return 0, errors.New("missing path parameter: " + key)
+	}
+
+	id, err := strconv.ParseInt(param, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, errors.New("invalid id parameter: must be a positive integer")
+	}
+
+	return id, nil
 }

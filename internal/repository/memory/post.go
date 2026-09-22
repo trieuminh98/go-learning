@@ -55,3 +55,16 @@ func (r *PostRepository) Create(_ context.Context, p core.Post) (core.Post, erro
 	r.posts = append(r.posts, created)
 	return created, nil
 }
+
+// GetByID retrieves a post by ID from in-memory slice.
+func (r *PostRepository) GetByID(_ context.Context, id int64) (core.Post, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, p := range r.posts {
+		if p.ID == id {
+			return p, nil
+		}
+	}
+	return core.Post{}, core.ErrPostNotFound
+}

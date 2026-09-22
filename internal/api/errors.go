@@ -37,8 +37,10 @@ func MapDomainErrorToHTTP(w http.ResponseWriter, err error) {
 		writeJSONError(w, http.StatusConflict, err.Error())
 
 	case errors.Is(err, core.ErrTruckNotFound),
-		errors.Is(err, core.ErrUserNotFound):
+		errors.Is(err, core.ErrUserNotFound),
+		errors.Is(err, core.ErrPostNotFound):
 		writeJSONError(w, http.StatusNotFound, err.Error())
+
 
 
 	default:

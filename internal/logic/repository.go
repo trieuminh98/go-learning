@@ -24,4 +24,5 @@ type TruckRepository interface {
 type PostRepository interface {
 	List(ctx context.Context) ([]core.Post, error)
 	Create(ctx context.Context, post core.Post) (core.Post, error)
+	GetByID(ctx context.Context, id int64) (core.Post, error)
 }

@@ -17,4 +17,5 @@ var (
 
 	ErrInvalidTitle   = errors.New("title must not be empty")
 	ErrInvalidContent = errors.New("content must not be empty")
+	ErrPostNotFound   = errors.New("post not found")
 )
