@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -45,7 +46,7 @@ func toTruckResponse(t core.Truck) TruckResponse {
 func (h *TruckHandler) ListTrucks(w http.ResponseWriter, r *http.Request) {
 	trucks, err := h.service.ListTrucks(r.Context())
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "failed to list trucks")
+		internalServerError(w, r, err)
 		return
 	}
 
@@ -63,13 +64,13 @@ func (h *TruckHandler) GetTruck(w http.ResponseWriter, r *http.Request) {
 		id = r.PathValue("id")
 	}
 	if id == "" {
-		writeJSONError(w, http.StatusBadRequest, "missing truck id in path")
+		badRequest(w, r, errors.New("missing truck id in path"))
 		return
 	}
 
 	truck, err := h.service.GetTruck(r.Context(), id)
 	if err != nil {
-		MapDomainErrorToHTTP(w, err)
+		MapDomainErrorToHTTP(w, r, err)
 		return
 	}
 
@@ -80,7 +81,7 @@ func (h *TruckHandler) GetTruck(w http.ResponseWriter, r *http.Request) {
 func (h *TruckHandler) CreateTruck(w http.ResponseWriter, r *http.Request) {
 	var input CreateTruckRequest
 	if err := readJSON(w, r, &input); err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		badRequest(w, r, err)
 		return
 	}
 
@@ -91,7 +92,7 @@ func (h *TruckHandler) CreateTruck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.CreateTruck(r.Context(), entity); err != nil {
-		MapDomainErrorToHTTP(w, err)
+		MapDomainErrorToHTTP(w, r, err)
 		return
 	}
 

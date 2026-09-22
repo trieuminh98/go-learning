@@ -42,7 +42,7 @@ func toUserResponse(u core.User) UserResponse {
 func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.service.ListUsers(r.Context())
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "failed to list users")
+		internalServerError(w, r, err)
 		return
 	}
 
@@ -58,7 +58,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var input CreateUserRequest
 
 	if err := readJSON(w, r, &input); err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		badRequest(w, r, err)
 		return
 	}
 
@@ -69,7 +69,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	created, err := h.service.CreateUser(r.Context(), userEntity)
 	if err != nil {
-		MapDomainErrorToHTTP(w, err)
+		MapDomainErrorToHTTP(w, r, err)
 		return
 	}
 

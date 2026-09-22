@@ -103,18 +103,18 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 	var input CreatePostRequest
 
 	if err := readJSON(w, r, &input); err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		badRequest(w, r, err)
 		return
 	}
 
 	if err := input.Validate(); err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		badRequest(w, r, err)
 		return
 	}
 
 	userID, err := UserIDFromContext(r.Context())
 	if err != nil {
-		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		unauthorized(w, r, "unauthorized")
 		return
 	}
 
@@ -125,7 +125,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		Tags:    input.Tags,
 	})
 	if err != nil {
-		MapDomainErrorToHTTP(w, err)
+		MapDomainErrorToHTTP(w, r, err)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 func (h *PostHandler) ListPosts(w http.ResponseWriter, r *http.Request) {
 	posts, err := h.service.ListPosts(r.Context())
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "failed to list posts")
+		internalServerError(w, r, err)
 		return
 	}
 
@@ -151,13 +151,13 @@ func (h *PostHandler) ListPosts(w http.ResponseWriter, r *http.Request) {
 func (h *PostHandler) GetPost(w http.ResponseWriter, r *http.Request) {
 	postID, err := readIDParam(r, "postID")
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		badRequest(w, r, err)
 		return
 	}
 
 	post, err := h.service.GetPost(r.Context(), postID)
 	if err != nil {
-		MapDomainErrorToHTTP(w, err)
+		MapDomainErrorToHTTP(w, r, err)
 		return
 	}
 
