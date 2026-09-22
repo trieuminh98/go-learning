@@ -1,6 +1,6 @@
 # Error Handling Architecture & Core Mental Model
 
-Tài liệu này ghi lại triết lý thiết kế và quy tắc xử lý lỗi (Error Handling) xuyên suốt các tầng kiến trúc trong ứng dụng backend Go. Đây là quy chuẩn bắt buộc áp dụng để đảm bảo tính an toàn, bảo mật thông tin và dễ bảo trì.
+This document captures the design philosophy and error handling rules across all architectural layers in the Go backend application. These standards are mandatory to ensure system reliability, information security, and maintainability.
 
 ---
 
@@ -11,63 +11,63 @@ Database (PostgreSQL / pgx)
       │  (pgx.ErrNoRows, unique_violation, driver errors)
       ▼
 Repository Layer
-      │  Chuyển đổi lỗi database driver thành Domain Sentinel Error
-      │  Nguyên tắc: KHÔNG BAO GIỜ để rò rỉ pgx/sql error lên tầng trên
+      │  Translates database driver errors into Domain Sentinel Errors
+      │  Rule: NEVER leak pgx/sql driver errors to higher layers
       ▼
 Logic Layer (Service / Use Case)
-      │  Thực thi nghiệp vụ, kiểm tra business rules
-      │  Nguyên tắc: Chỉ wrap & return error, KHÔNG log, KHÔNG biết về HTTP
+      │  Executes business rules and workflows
+      │  Rule: Only wrap & return errors; DO NOT log, DO NOT know about HTTP
       ▼
 API Layer (Handler & Transport)
-      │  Biên giới cuối cùng (Boundary)
-      ├── 400 Bad Request: Lỗi client input (actionable message, KHÔNG log error)
-      ├── 404 Not Found: Lỗi không tìm thấy tài nguyên (KHÔNG log error)
-      └── 500 Internal Server Error: Lỗi hệ thống bất ngờ (LOG ERROR + Che giấu lỗi thật)
+      │  Final Boundary
+      ├── 400 Bad Request: Client input error (actionable message, DO NOT log error)
+      ├── 404 Not Found: Resource not found (DO NOT log error)
+      └── 500 Internal Server Error: Unexpected system failure (LOG ERROR + hide internal details)
 ```
 
 ---
 
-## 2. Các nguyên tắc cốt lõi (Hard Rules)
+## 2. Core Principles (Hard Rules)
 
-### 2.1. "Log Once at the Boundary" (Không duplicate log)
-- **Tầng dưới (`Repository`, `Logic`)**: Chỉ bọc lỗi ngữ cảnh (`fmt.Errorf("...: %w", err)`) và `return err`. Tuyệt đối không `log.Printf` trước khi return.
-- **Tầng trên cùng (`API Layer`)**: Là nơi duy nhất quyết định việc ghi log khi lỗi được chuyển thành response HTTP.
-- **Lợi ích**: Tránh hiện tượng 1 lỗi phát sinh tạo ra 3-4 dòng log rải rác từ Repo lên Service rồi lên Handler.
+### 2.1. "Log Once at the Boundary" (No Duplicate Logs)
+- **Lower Layers (`Repository`, `Logic`)**: Only wrap error context (`fmt.Errorf("...: %w", err)`) and `return err`. Never call `log.Printf` before returning.
+- **Topmost Layer (`API Layer`)**: The single place responsible for deciding whether and how to log when mapping an error to an HTTP response.
+- **Benefit**: Prevents log clutter where a single failure generates 3-4 redundant log entries scattered across Repo, Service, and Handler.
 
-### 2.2. Phân loại Logging: Tránh Log Noise (Ô nhiễm log)
-Không phải lỗi nào cũng là sự cố hệ thống:
-- **Lỗi 500 (Internal Server Error)**: Bắt buộc ghi log ở mức `[ERROR]` kèm đầy đủ ngữ cảnh (`HTTP method`, `path`, `request_id`, `actual error`).
-- **Lỗi 400 (Bad Request)**: Là lỗi do client gửi sai payload/params. Không log mức ERROR.
-- **Lỗi 404 (Not Found)**: Là trường hợp bình thường khi truy vấn dữ liệu không tồn tại. Không log mức ERROR.
+### 2.2. Categorize Logging: Avoid Log Noise
+Not every error represents a system failure:
+- **500 Internal Server Error**: Mandatory `[ERROR]` level log containing full request context (`HTTP method`, `path`, `request_id`, `actual error`).
+- **400 Bad Request**: Caused by invalid client payload/params. Do NOT log at ERROR level.
+- **404 Not Found**: Standard flow when querying non-existent resources. Do NOT log at ERROR level.
 
-### 2.3. Che giấu lỗi hệ thống ở phản hồi 500 (Security & Data Leak Prevention)
-- **Tuyệt đối KHÔNG** trả chuỗi `err.Error()` của lỗi nội bộ ra ngoài client khi gặp lỗi 500.
-  - *Lý do*: `err.Error()` có thể chứa tên bảng DB, syntax SQL, schema nội bộ, credentials hoặc stack trace.
-- **Quy chuẩn**: Luôn trả về một thông điệp chung, an toàn và ổn định:
+### 2.3. Hide Internal Errors in 500 Responses (Security & Data Leak Prevention)
+- **NEVER** expose the raw `err.Error()` string of internal system errors to clients on 500 responses.
+  - *Reason*: `err.Error()` may expose DB table names, SQL syntax, internal schemas, credentials, or stack traces.
+- **Standard**: Always return a stable, generic message:
   ```json
   {
     "error": "the server encountered a problem"
   }
   ```
-  Chi tiết lỗi thật sự được ghi lại an toàn trên server log để lập trình viên điều tra qua `request_id`.
+  The actual root error is safely recorded on the server log for investigation via `request_id`.
 
-### 2.4. Tính nhất quán của Error Envelope
-Tất cả các phản hồi lỗi từ API (dù là 400, 401, 403, 404, 409 hay 500) phải tuân theo đúng một định dạng JSON thống nhất:
+### 2.4. Error Envelope Consistency
+All API error responses (whether 400, 401, 403, 404, 409, or 500) must adhere strictly to a single uniform JSON envelope:
 ```json
 {
-  "error": "mô tả lỗi ngắn gọn"
+  "error": "concise error description"
 }
 ```
-Không để mỗi handler tự phát minh cấu trúc JSON lỗi riêng.
+Individual handlers must never invent custom JSON error shapes.
 
 ---
 
-## 3. Bản đồ ánh xạ lỗi (Error Mapping Summary)
+## 3. Error Mapping Summary
 
-| Loại lỗi | Nguồn phát sinh | HTTP Status | Log Server | Message trả về Client |
+| Error Category | Source | HTTP Status | Server Log | Client Message |
 | :--- | :--- | :---: | :---: | :--- |
-| **Invalid Input** | JSON syntax sai, unknown field, invalid path param | `400 Bad Request` | Không | Thông điệp cụ thể, rõ ràng để client sửa đổi |
-| **Business Rule** | Vi phạm điều kiện nghiệp vụ (`ErrInvalidTitle`, `ErrOverloaded`) | `400 Bad Request` | Không | Thông điệp nghiệp vụ cụ thể |
-| **Not Found** | `pgx.ErrNoRows` -> `core.ErrNotFound` | `404 Not Found` | Không | `"resource not found"` hoặc `"post not found"` |
-| **Conflict** | `23505 unique_violation` -> `core.ErrDuplicate*` | `409 Conflict` | Không | Thông điệp trùng lặp dữ liệu |
-| **Unexpected System Error** | Database down, disk full, unhandled error | `500 Internal Server Error` | **CÓ [ERROR]** | `"the server encountered a problem"` |
+| **Invalid Input** | Malformed JSON, unknown field, invalid path param | `400 Bad Request` | No | Clear, actionable message for the client |
+| **Business Rule** | Business invariant violation (`ErrInvalidTitle`, `ErrOverloaded`) | `400 Bad Request` | No | Specific domain error description |
+| **Not Found** | `pgx.ErrNoRows` -> `core.ErrNotFound` | `404 Not Found` | No | `"resource not found"` or `"post not found"` |
+| **Conflict** | `23505 unique_violation` -> `core.ErrDuplicate*` | `409 Conflict` | No | Duplicate data message |
+| **Unexpected System Error** | Database down, disk full, unhandled error | `500 Internal Server Error` | **YES [ERROR]** | `"the server encountered a problem"` |

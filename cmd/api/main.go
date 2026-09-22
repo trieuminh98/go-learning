@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-playground/validator/v10"
+
 	"go-learning/internal/api"
 	"go-learning/internal/db"
 	generated "go-learning/internal/db/generated"
@@ -39,15 +41,17 @@ type Application struct {
 	userService  *logic.UserService
 	truckService *logic.TruckService
 	postService  *logic.PostService
+	validator    *validator.Validate
 }
 
 // NewApplication constructs the Application root with injected dependencies.
-func NewApplication(cfg Config, userService *logic.UserService, truckService *logic.TruckService, postService *logic.PostService) *Application {
+func NewApplication(cfg Config, userService *logic.UserService, truckService *logic.TruckService, postService *logic.PostService, validator *validator.Validate) *Application {
 	return &Application{
 		config:       cfg,
 		userService:  userService,
 		truckService: truckService,
 		postService:  postService,
+		validator:    validator,
 	}
 }
 
@@ -58,6 +62,7 @@ func (app *Application) routes() http.Handler {
 		UserService:  app.userService,
 		TruckService: app.truckService,
 		PostService:  app.postService,
+		Validator:    app.validator,
 	})
 }
 
@@ -125,10 +130,13 @@ func main() {
 	truckService := logic.NewTruckService(storage.Trucks)
 	postService := logic.NewPostService(storage.Posts)
 
-	// 5. Instantiate Application composition root
-	app := NewApplication(cfg, userService, truckService, postService)
+	// 5. Initialize shared request validator
+	validate := validator.New(validator.WithRequiredStructEnabled())
 
-	// 6. Start server
+	// 6. Instantiate Application composition root
+	app := NewApplication(cfg, userService, truckService, postService, validate)
+
+	// 7. Start server
 	if err := app.run(); err != nil {
 		log.Fatalf("server failure: %v", err)
 	}

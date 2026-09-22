@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
+
+	"github.com/go-playground/validator/v10"
 
 	"go-learning/internal/core"
 	"go-learning/internal/logic"
@@ -34,31 +35,9 @@ func UserIDFromContext(ctx context.Context) (int64, error) {
 
 // CreatePostRequest defines the writable API contract for creating a post.
 type CreatePostRequest struct {
-	Title   string   `json:"title"`
-	Content string   `json:"content"`
+	Title   string   `json:"title" validate:"required,max=100"`
+	Content string   `json:"content" validate:"required,max=1000"`
 	Tags    []string `json:"tags"`
-}
-
-// Validate checks request-level invariants before passing input to Logic.
-func (r *CreatePostRequest) Validate() error {
-	if strings.TrimSpace(r.Title) == "" {
-		return errors.New("title is required")
-	}
-	if len(r.Title) > 255 {
-		return errors.New("title must not exceed 255 characters")
-	}
-	if strings.TrimSpace(r.Content) == "" {
-		return errors.New("content is required")
-	}
-	if len(r.Tags) > 10 {
-		return errors.New("tags must not exceed 10 items")
-	}
-	for _, tag := range r.Tags {
-		if strings.TrimSpace(tag) == "" {
-			return errors.New("tag cannot be empty")
-		}
-	}
-	return nil
 }
 
 // PostResponse defines the readable JSON contract for returning a post.
@@ -90,12 +69,16 @@ func toPostResponse(p core.Post) PostResponse {
 
 // PostHandler coordinates HTTP requests for the posts resource.
 type PostHandler struct {
-	service *logic.PostService
+	service   *logic.PostService
+	validator *validator.Validate
 }
 
 // NewPostHandler creates a new PostHandler.
-func NewPostHandler(service *logic.PostService) *PostHandler {
-	return &PostHandler{service: service}
+func NewPostHandler(service *logic.PostService, validator *validator.Validate) *PostHandler {
+	return &PostHandler{
+		service:   service,
+		validator: validator,
+	}
 }
 
 // CreatePost handles POST /v1/posts.
@@ -107,9 +90,11 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := input.Validate(); err != nil {
-		badRequest(w, r, err)
-		return
+	if h.validator != nil {
+		if err := h.validator.Struct(input); err != nil {
+			badRequest(w, r, errors.New("invalid request payload"))
+			return
+		}
 	}
 
 	userID, err := UserIDFromContext(r.Context())

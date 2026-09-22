@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
 
 	"go-learning/internal/gateway"
 	"go-learning/internal/logic"
@@ -15,6 +16,7 @@ type RouterConfig struct {
 	UserService  *logic.UserService
 	TruckService *logic.TruckService
 	PostService  *logic.PostService
+	Validator    *validator.Validate
 }
 
 // NewRouter builds and returns the application HTTP handler using Chi.
@@ -24,7 +26,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	userHandler := NewUserHandler(cfg.UserService)
 	truckHandler := NewTruckHandler(cfg.TruckService)
-	postHandler := NewPostHandler(cfg.PostService)
+	postHandler := NewPostHandler(cfg.PostService, cfg.Validator)
 
 	// 1. Gateway global cross-cutting middleware stack
 	r.Use(gateway.RecoveryMiddleware)
