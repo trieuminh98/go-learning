@@ -73,6 +73,7 @@ type PostResponse struct {
 	Tags      []string  `json:"tags"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	Version   int32     `json:"version"`
 }
 
 func toPostResponse(p core.Post) PostResponse {
@@ -88,6 +89,7 @@ func toPostResponse(p core.Post) PostResponse {
 		Tags:      tags,
 		CreatedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt,
+		Version:   p.Version,
 	}
 }
 
@@ -117,6 +119,7 @@ type PostDetailResponse struct {
 	Tags      []string          `json:"tags"`
 	CreatedAt time.Time         `json:"created_at"`
 	UpdatedAt time.Time         `json:"updated_at"`
+	Version   int32             `json:"version"`
 	Comments  []CommentResponse `json:"comments"`
 }
 
@@ -154,6 +157,7 @@ func toPostDetailResponse(detail core.PostDetail) PostDetailResponse {
 		Tags:      tags,
 		CreatedAt: detail.CreatedAt,
 		UpdatedAt: detail.UpdatedAt,
+		Version:   detail.Version,
 		Comments:  comments,
 	}
 }

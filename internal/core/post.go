@@ -11,6 +11,7 @@ type Post struct {
 	Tags      []string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	Version   int32
 }
 
 // PostDetail represents a rich post aggregate with its associated comments for the detail view.

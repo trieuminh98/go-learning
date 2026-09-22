@@ -18,7 +18,8 @@ RETURNING
     content,
     tags,
     created_at,
-    updated_at;
+    updated_at,
+    version;
 
 -- name: ListPosts :many
 SELECT
@@ -28,7 +29,8 @@ SELECT
     content,
     tags,
     created_at,
-    updated_at
+    updated_at,
+    version
 FROM posts
 ORDER BY id ASC;
 
@@ -40,7 +42,8 @@ SELECT
     content,
     tags,
     created_at,
-    updated_at
+    updated_at,
+    version
 FROM posts
 WHERE id = $1;
 
@@ -50,8 +53,10 @@ SET
     title = $2,
     content = $3,
     tags = $4,
+    version = version + 1,
     updated_at = NOW()
 WHERE id = $1
+  AND version = $5
 RETURNING
     id,
     user_id,
@@ -59,7 +64,8 @@ RETURNING
     content,
     tags,
     created_at,
-    updated_at;
+    updated_at,
+    version;
 
 -- name: DeletePost :execrows
 DELETE FROM posts

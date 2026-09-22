@@ -29,7 +29,8 @@ RETURNING
     content,
     tags,
     created_at,
-    updated_at
+    updated_at,
+    version
 `
 
 type CreatePostParams struct {
@@ -55,6 +56,7 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 		&i.Tags,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Version,
 	)
 	return i, err
 }
@@ -80,7 +82,8 @@ SELECT
     content,
     tags,
     created_at,
-    updated_at
+    updated_at,
+    version
 FROM posts
 WHERE id = $1
 `
@@ -96,6 +99,7 @@ func (q *Queries) GetPostByID(ctx context.Context, id int64) (Post, error) {
 		&i.Tags,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Version,
 	)
 	return i, err
 }
@@ -108,7 +112,8 @@ SELECT
     content,
     tags,
     created_at,
-    updated_at
+    updated_at,
+    version
 FROM posts
 ORDER BY id ASC
 `
@@ -130,6 +135,7 @@ func (q *Queries) ListPosts(ctx context.Context) ([]Post, error) {
 			&i.Tags,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -147,8 +153,10 @@ SET
     title = $2,
     content = $3,
     tags = $4,
+    version = version + 1,
     updated_at = NOW()
 WHERE id = $1
+  AND version = $5
 RETURNING
     id,
     user_id,
@@ -156,7 +164,8 @@ RETURNING
     content,
     tags,
     created_at,
-    updated_at
+    updated_at,
+    version
 `
 
 type UpdatePostParams struct {
@@ -164,6 +173,7 @@ type UpdatePostParams struct {
 	Title   string   `json:"title"`
 	Content string   `json:"content"`
 	Tags    []string `json:"tags"`
+	Version int32    `json:"version"`
 }
 
 func (q *Queries) UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error) {
@@ -172,6 +182,7 @@ func (q *Queries) UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, e
 		arg.Title,
 		arg.Content,
 		arg.Tags,
+		arg.Version,
 	)
 	var i Post
 	err := row.Scan(
@@ -182,6 +193,7 @@ func (q *Queries) UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, e
 		&i.Tags,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Version,
 	)
 	return i, err
 }

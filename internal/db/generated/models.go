@@ -24,6 +24,7 @@ type Post struct {
 	Tags      []string           `json:"tags"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	Version   int32              `json:"version"`
 }
 
 type Truck struct {

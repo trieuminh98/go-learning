@@ -39,6 +39,7 @@ func toCorePost(p db.Post) core.Post {
 		Tags:      tags,
 		CreatedAt: p.CreatedAt.Time,
 		UpdatedAt: p.UpdatedAt.Time,
+		Version:   p.Version,
 	}
 }
 
@@ -105,9 +106,13 @@ func (r *PostRepository) Update(ctx context.Context, p core.Post) (core.Post, er
 		Title:   p.Title,
 		Content: p.Content,
 		Tags:    tags,
+		Version: p.Version,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			if _, checkErr := r.queries.GetPostByID(ctx, p.ID); checkErr == nil {
+				return core.Post{}, core.ErrConflict
+			}
 			return core.Post{}, core.ErrPostNotFound
 		}
 		return core.Post{}, err

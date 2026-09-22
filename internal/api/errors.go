@@ -70,7 +70,8 @@ func MapDomainErrorToHTTP(w http.ResponseWriter, r *http.Request, err error) {
 		badRequest(w, r, err)
 
 	case errors.Is(err, core.ErrUserAlreadyExists),
-		errors.Is(err, core.ErrDuplicateTruckID):
+		errors.Is(err, core.ErrDuplicateTruckID),
+		errors.Is(err, core.ErrConflict):
 		conflict(w, r, err.Error())
 
 	case errors.Is(err, core.ErrTruckNotFound),

@@ -50,6 +50,7 @@ func (r *PostRepository) Create(_ context.Context, p core.Post) (core.Post, erro
 		Tags:      p.Tags,
 		CreatedAt: now,
 		UpdatedAt: now,
+		Version:   1,
 	}
 	r.nextID++
 	r.posts = append(r.posts, created)
@@ -69,13 +70,16 @@ func (r *PostRepository) GetByID(_ context.Context, id int64) (core.Post, error)
 	return core.Post{}, core.ErrPostNotFound
 }
 
-// Update modifies a post in-memory, returning core.ErrPostNotFound if missing.
+// Update modifies a post in-memory, returning core.ErrPostNotFound if missing or core.ErrConflict on version mismatch.
 func (r *PostRepository) Update(_ context.Context, p core.Post) (core.Post, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	for i, existing := range r.posts {
 		if existing.ID == p.ID {
+			if existing.Version != p.Version {
+				return core.Post{}, core.ErrConflict
+			}
 			tags := p.Tags
 			if tags == nil {
 				tags = []string{}
@@ -88,6 +92,7 @@ func (r *PostRepository) Update(_ context.Context, p core.Post) (core.Post, erro
 				Tags:      tags,
 				CreatedAt: existing.CreatedAt,
 				UpdatedAt: time.Now().UTC(),
+				Version:   existing.Version + 1,
 			}
 			r.posts[i] = updated
 			return updated, nil
