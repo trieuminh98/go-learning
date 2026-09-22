@@ -27,6 +27,17 @@ func writeJSON(w http.ResponseWriter, status int, data any) error {
 	return nil
 }
 
+// envelope defines the standardized JSON success envelope: {"data": ...}.
+type envelope struct {
+	Data any `json:"data"`
+}
+
+// jsonResponse wraps data in the standardized {"data": ...} envelope and sends it
+// with the specified HTTP status code.
+func jsonResponse(w http.ResponseWriter, status int, data any) error {
+	return writeJSON(w, status, envelope{Data: data})
+}
+
 // readJSON reads and strictly decodes a single JSON object from the request body into dst.
 // It limits request size to 1MB, disallows unknown fields, formats decoding errors into
 // client-friendly messages, and rejects trailing/multiple JSON values.

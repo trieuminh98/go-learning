@@ -50,7 +50,7 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	for _, u := range users {
 		resp = append(resp, toUserResponse(u))
 	}
-	_ = writeJSON(w, http.StatusOK, resp)
+	_ = jsonResponse(w, http.StatusOK, resp)
 }
 
 // CreateUser handles user creation by delegating to UserService.
@@ -73,5 +73,5 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = writeJSON(w, http.StatusCreated, toUserResponse(created))
+	_ = jsonResponse(w, http.StatusCreated, toUserResponse(created))
 }

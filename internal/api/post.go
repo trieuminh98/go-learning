@@ -205,7 +205,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = writeJSON(w, http.StatusCreated, toPostResponse(post))
+	_ = jsonResponse(w, http.StatusCreated, toPostResponse(post))
 }
 
 // ListPosts handles GET /v1/posts.
@@ -220,7 +220,7 @@ func (h *PostHandler) ListPosts(w http.ResponseWriter, r *http.Request) {
 	for _, p := range posts {
 		resp = append(resp, toPostResponse(p))
 	}
-	_ = writeJSON(w, http.StatusOK, resp)
+	_ = jsonResponse(w, http.StatusOK, resp)
 }
 
 // GetPost handles GET /v1/posts/{postID}.
@@ -237,7 +237,7 @@ func (h *PostHandler) GetPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = writeJSON(w, http.StatusOK, toPostDetailResponse(detail))
+	_ = jsonResponse(w, http.StatusOK, toPostDetailResponse(detail))
 }
 
 // PostContextMiddleware resolves the post by route parameter and attaches it to request context.
@@ -299,7 +299,7 @@ func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = writeJSON(w, http.StatusOK, toPostResponse(updatedPost))
+	_ = jsonResponse(w, http.StatusOK, toPostResponse(updatedPost))
 }
 
 // DeletePost handles DELETE /v1/posts/{postID}.

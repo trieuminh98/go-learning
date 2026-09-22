@@ -54,7 +54,7 @@ func (h *TruckHandler) ListTrucks(w http.ResponseWriter, r *http.Request) {
 	for _, t := range trucks {
 		resp = append(resp, toTruckResponse(t))
 	}
-	_ = writeJSON(w, http.StatusOK, resp)
+	_ = jsonResponse(w, http.StatusOK, resp)
 }
 
 // GetTruck translates HTTP requests to TruckService calls.
@@ -74,7 +74,7 @@ func (h *TruckHandler) GetTruck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = writeJSON(w, http.StatusOK, toTruckResponse(truck))
+	_ = jsonResponse(w, http.StatusOK, toTruckResponse(truck))
 }
 
 // CreateTruck parses payload and forwards to TruckService.
@@ -96,5 +96,5 @@ func (h *TruckHandler) CreateTruck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = writeJSON(w, http.StatusCreated, toTruckResponse(entity))
+	_ = jsonResponse(w, http.StatusCreated, toTruckResponse(entity))
 }
