@@ -14,6 +14,8 @@ import (
 func TestPostgresRepositoryInterfaces(t *testing.T) {
 	var _ logic.UserRepository = (*postgres.UserRepository)(nil)
 	var _ logic.TruckRepository = (*postgres.TruckRepository)(nil)
+	var _ logic.PostRepository = (*postgres.PostRepository)(nil)
+	var _ logic.CommentRepository = (*postgres.CommentRepository)(nil)
 }
 
 func TestPostgresMapping(t *testing.T) {

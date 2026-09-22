@@ -26,3 +26,9 @@ type PostRepository interface {
 	Create(ctx context.Context, post core.Post) (core.Post, error)
 	GetByID(ctx context.Context, id int64) (core.Post, error)
 }
+
+// CommentRepository defines the persistence contract required for comment operations.
+type CommentRepository interface {
+	GetByPostID(ctx context.Context, postID int64) ([]core.Comment, error)
+	Create(ctx context.Context, comment core.Comment) (core.Comment, error)
+}

@@ -128,7 +128,7 @@ func main() {
 	// 4. Initialize logic services with only the specific repository each requires
 	userService := logic.NewUserService(storage.Users)
 	truckService := logic.NewTruckService(storage.Trucks)
-	postService := logic.NewPostService(storage.Posts)
+	postService := logic.NewPostService(storage.Posts, storage.Comments)
 
 	// 5. Initialize shared request validator
 	validate := validator.New(validator.WithRequiredStructEnabled())

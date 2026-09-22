@@ -17,12 +17,16 @@ type CreatePostInput struct {
 
 // PostService coordinates business operations around posts.
 type PostService struct {
-	repo PostRepository
+	repo        PostRepository
+	commentRepo CommentRepository
 }
 
 // NewPostService constructs a new PostService.
-func NewPostService(repo PostRepository) *PostService {
-	return &PostService{repo: repo}
+func NewPostService(repo PostRepository, commentRepo CommentRepository) *PostService {
+	return &PostService{
+		repo:        repo,
+		commentRepo: commentRepo,
+	}
 }
 
 // CreatePost validates application rules, creates the domain entity, and persists it.
@@ -57,7 +61,28 @@ func (s *PostService) ListPosts(ctx context.Context) ([]core.Post, error) {
 	return s.repo.List(ctx)
 }
 
-// GetPost retrieves a single post by its ID.
+// GetPost retrieves a single post by its ID without loading comments.
 func (s *PostService) GetPost(ctx context.Context, id int64) (core.Post, error) {
 	return s.repo.GetByID(ctx, id)
+}
+
+// GetPostDetail retrieves a post along with its comments for the detail view.
+func (s *PostService) GetPostDetail(ctx context.Context, id int64) (core.PostDetail, error) {
+	post, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return core.PostDetail{}, err
+	}
+
+	comments, err := s.commentRepo.GetByPostID(ctx, id)
+	if err != nil {
+		return core.PostDetail{}, err
+	}
+	if comments == nil {
+		comments = []core.Comment{}
+	}
+
+	return core.PostDetail{
+		Post:     post,
+		Comments: comments,
+	}, nil
 }

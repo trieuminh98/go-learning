@@ -67,6 +67,73 @@ func toPostResponse(p core.Post) PostResponse {
 	}
 }
 
+// CommentAuthorResponse defines the public author identity for a comment.
+type CommentAuthorResponse struct {
+	ID        int64  `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+}
+
+// CommentResponse defines the readable JSON contract for returning a comment.
+type CommentResponse struct {
+	ID        int64                 `json:"id"`
+	PostID    int64                 `json:"post_id"`
+	UserID    int64                 `json:"user_id"`
+	Content   string                `json:"content"`
+	CreatedAt time.Time             `json:"created_at"`
+	Author    CommentAuthorResponse `json:"author"`
+}
+
+// PostDetailResponse defines the rich readable JSON contract for post detail including its comments.
+type PostDetailResponse struct {
+	ID        int64             `json:"id"`
+	UserID    int64             `json:"user_id"`
+	Title     string            `json:"title"`
+	Content   string            `json:"content"`
+	Tags      []string          `json:"tags"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
+	Comments  []CommentResponse `json:"comments"`
+}
+
+func toCommentResponse(c core.Comment) CommentResponse {
+	return CommentResponse{
+		ID:        c.ID,
+		PostID:    c.PostID,
+		UserID:    c.UserID,
+		Content:   c.Content,
+		CreatedAt: c.CreatedAt,
+		Author: CommentAuthorResponse{
+			ID:        c.Author.ID,
+			FirstName: c.Author.FirstName,
+			LastName:  c.Author.LastName,
+		},
+	}
+}
+
+func toPostDetailResponse(detail core.PostDetail) PostDetailResponse {
+	tags := detail.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+
+	comments := make([]CommentResponse, 0, len(detail.Comments))
+	for _, c := range detail.Comments {
+		comments = append(comments, toCommentResponse(c))
+	}
+
+	return PostDetailResponse{
+		ID:        detail.ID,
+		UserID:    detail.UserID,
+		Title:     detail.Title,
+		Content:   detail.Content,
+		Tags:      tags,
+		CreatedAt: detail.CreatedAt,
+		UpdatedAt: detail.UpdatedAt,
+		Comments:  comments,
+	}
+}
+
 // PostHandler coordinates HTTP requests for the posts resource.
 type PostHandler struct {
 	service   *logic.PostService
@@ -140,11 +207,11 @@ func (h *PostHandler) GetPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := h.service.GetPost(r.Context(), postID)
+	detail, err := h.service.GetPostDetail(r.Context(), postID)
 	if err != nil {
 		MapDomainErrorToHTTP(w, r, err)
 		return
 	}
 
-	_ = writeJSON(w, http.StatusOK, toPostResponse(post))
+	_ = writeJSON(w, http.StatusOK, toPostDetailResponse(detail))
 }

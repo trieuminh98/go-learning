@@ -12,3 +12,9 @@ type Post struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
+// PostDetail represents a rich post aggregate with its associated comments for the detail view.
+type PostDetail struct {
+	Post
+	Comments []Comment
+}
