@@ -16,6 +16,10 @@ type userContextKey string
 
 const contextUserIDKey userContextKey = "authenticated_user_id"
 
+type postContextKey string
+
+const contextPostKey postContextKey = "post"
+
 // ContextWithUserID associates an authenticated user ID with the request context.
 func ContextWithUserID(ctx context.Context, userID int64) context.Context {
 	return context.WithValue(ctx, contextUserIDKey, userID)
@@ -33,11 +37,31 @@ func UserIDFromContext(ctx context.Context) (int64, error) {
 	return 1, nil
 }
 
+// ContextWithPost associates a resolved core.Post with the request context.
+func ContextWithPost(ctx context.Context, post core.Post) context.Context {
+	return context.WithValue(ctx, contextPostKey, post)
+}
+
+// PostFromContext extracts the resolved core.Post from the request context.
+func PostFromContext(ctx context.Context) (core.Post, bool) {
+	post, ok := ctx.Value(contextPostKey).(core.Post)
+	return post, ok
+}
+
 // CreatePostRequest defines the writable API contract for creating a post.
 type CreatePostRequest struct {
 	Title   string   `json:"title" validate:"required,max=100"`
 	Content string   `json:"content" validate:"required,max=1000"`
 	Tags    []string `json:"tags"`
+}
+
+// UpdatePostRequest defines the writable API contract for partially updating a post.
+// Pointers are used so the API can distinguish between a field not sent (nil)
+// and a field sent with zero value (e.g. empty string).
+type UpdatePostRequest struct {
+	Title   *string   `json:"title" validate:"omitempty,max=100"`
+	Content *string   `json:"content" validate:"omitempty,max=1000"`
+	Tags    *[]string `json:"tags"`
 }
 
 // PostResponse defines the readable JSON contract for returning a post.
@@ -214,4 +238,83 @@ func (h *PostHandler) GetPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = writeJSON(w, http.StatusOK, toPostDetailResponse(detail))
+}
+
+// PostContextMiddleware resolves the post by route parameter and attaches it to request context.
+// Reusable across handlers that operate on an existing post.
+func (h *PostHandler) PostContextMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		postID, err := readIDParam(r, "postID")
+		if err != nil {
+			badRequest(w, r, err)
+			return
+		}
+
+		post, err := h.service.GetPost(r.Context(), postID)
+		if err != nil {
+			MapDomainErrorToHTTP(w, r, err)
+			return
+		}
+
+		ctx := ContextWithPost(r.Context(), post)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// UpdatePost handles PATCH /v1/posts/{postID}.
+// Reads the already-resolved post from context and applies only present fields.
+func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
+	post, ok := PostFromContext(r.Context())
+	if !ok {
+		internalServerError(w, r, errors.New("post missing from request context"))
+		return
+	}
+
+	var req UpdatePostRequest
+	if err := readJSON(w, r, &req); err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	if h.validator != nil {
+		if err := h.validator.Struct(req); err != nil {
+			badRequest(w, r, errors.New("invalid request payload"))
+			return
+		}
+	}
+
+	if req.Title != nil {
+		post.Title = *req.Title
+	}
+	if req.Content != nil {
+		post.Content = *req.Content
+	}
+	if req.Tags != nil {
+		post.Tags = *req.Tags
+	}
+
+	updatedPost, err := h.service.UpdatePost(r.Context(), post)
+	if err != nil {
+		MapDomainErrorToHTTP(w, r, err)
+		return
+	}
+
+	_ = writeJSON(w, http.StatusOK, toPostResponse(updatedPost))
+}
+
+// DeletePost handles DELETE /v1/posts/{postID}.
+// Directly deletes the post and checks affected rows without pre-fetching SELECT.
+func (h *PostHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
+	postID, err := readIDParam(r, "postID")
+	if err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	if err := h.service.DeletePost(r.Context(), postID); err != nil {
+		MapDomainErrorToHTTP(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

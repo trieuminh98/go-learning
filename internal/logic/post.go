@@ -86,3 +86,29 @@ func (s *PostService) GetPostDetail(ctx context.Context, id int64) (core.PostDet
 		Comments: comments,
 	}, nil
 }
+
+// UpdatePost validates domain rules and updates the existing post entity.
+func (s *PostService) UpdatePost(ctx context.Context, post core.Post) (core.Post, error) {
+	trimmedTitle := strings.TrimSpace(post.Title)
+	if trimmedTitle == "" {
+		return core.Post{}, core.ErrInvalidTitle
+	}
+
+	trimmedContent := strings.TrimSpace(post.Content)
+	if trimmedContent == "" {
+		return core.Post{}, core.ErrInvalidContent
+	}
+
+	post.Title = trimmedTitle
+	post.Content = trimmedContent
+	if post.Tags == nil {
+		post.Tags = []string{}
+	}
+
+	return s.repo.Update(ctx, post)
+}
+
+// DeletePost removes a post by ID without requiring a prior load.
+func (s *PostService) DeletePost(ctx context.Context, id int64) error {
+	return s.repo.Delete(ctx, id)
+}

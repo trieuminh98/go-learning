@@ -92,3 +92,38 @@ func (r *PostRepository) GetByID(ctx context.Context, id int64) (core.Post, erro
 
 	return toCorePost(post), nil
 }
+
+// Update modifies an existing post in PostgreSQL, mapping pgx.ErrNoRows to core.ErrPostNotFound.
+func (r *PostRepository) Update(ctx context.Context, p core.Post) (core.Post, error) {
+	tags := p.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+
+	updated, err := r.queries.UpdatePost(ctx, db.UpdatePostParams{
+		ID:      p.ID,
+		Title:   p.Title,
+		Content: p.Content,
+		Tags:    tags,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return core.Post{}, core.ErrPostNotFound
+		}
+		return core.Post{}, err
+	}
+
+	return toCorePost(updated), nil
+}
+
+// Delete removes a post from PostgreSQL, mapping 0 rows affected to core.ErrPostNotFound.
+func (r *PostRepository) Delete(ctx context.Context, id int64) error {
+	rowsAffected, err := r.queries.DeletePost(ctx, id)
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return core.ErrPostNotFound
+	}
+	return nil
+}

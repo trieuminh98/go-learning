@@ -68,3 +68,44 @@ func (r *PostRepository) GetByID(_ context.Context, id int64) (core.Post, error)
 	}
 	return core.Post{}, core.ErrPostNotFound
 }
+
+// Update modifies a post in-memory, returning core.ErrPostNotFound if missing.
+func (r *PostRepository) Update(_ context.Context, p core.Post) (core.Post, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for i, existing := range r.posts {
+		if existing.ID == p.ID {
+			tags := p.Tags
+			if tags == nil {
+				tags = []string{}
+			}
+			updated := core.Post{
+				ID:        existing.ID,
+				UserID:    existing.UserID,
+				Title:     p.Title,
+				Content:   p.Content,
+				Tags:      tags,
+				CreatedAt: existing.CreatedAt,
+				UpdatedAt: time.Now().UTC(),
+			}
+			r.posts[i] = updated
+			return updated, nil
+		}
+	}
+	return core.Post{}, core.ErrPostNotFound
+}
+
+// Delete removes a post from memory, returning core.ErrPostNotFound if missing.
+func (r *PostRepository) Delete(_ context.Context, id int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for i, p := range r.posts {
+		if p.ID == id {
+			r.posts = append(r.posts[:i], r.posts[i+1:]...)
+			return nil
+		}
+	}
+	return core.ErrPostNotFound
+}

@@ -25,6 +25,8 @@ type PostRepository interface {
 	List(ctx context.Context) ([]core.Post, error)
 	Create(ctx context.Context, post core.Post) (core.Post, error)
 	GetByID(ctx context.Context, id int64) (core.Post, error)
+	Update(ctx context.Context, post core.Post) (core.Post, error)
+	Delete(ctx context.Context, id int64) error
 }
 
 // CommentRepository defines the persistence contract required for comment operations.
