@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -10,6 +11,14 @@ import (
 	"go-learning/internal/core"
 	db "go-learning/internal/db/generated"
 	"go-learning/internal/logic"
+)
+
+const (
+	getPostTimeout    = 500 * time.Millisecond
+	createPostTimeout = 1 * time.Second
+	updatePostTimeout = 1 * time.Second
+	deletePostTimeout = 1 * time.Second
+	listPostsTimeout  = 2 * time.Second
 )
 
 var _ logic.PostRepository = (*PostRepository)(nil)
@@ -45,6 +54,9 @@ func toCorePost(p db.Post) core.Post {
 
 // List fetches all posts from PostgreSQL.
 func (r *PostRepository) List(ctx context.Context) ([]core.Post, error) {
+	ctx, cancel := context.WithTimeout(ctx, listPostsTimeout)
+	defer cancel()
+
 	rows, err := r.queries.ListPosts(ctx)
 	if err != nil {
 		return nil, err
@@ -59,6 +71,9 @@ func (r *PostRepository) List(ctx context.Context) ([]core.Post, error) {
 
 // Create inserts a post into PostgreSQL, mapping foreign key violations to core.ErrUserNotFound.
 func (r *PostRepository) Create(ctx context.Context, p core.Post) (core.Post, error) {
+	ctx, cancel := context.WithTimeout(ctx, createPostTimeout)
+	defer cancel()
+
 	tags := p.Tags
 	if tags == nil {
 		tags = []string{}
@@ -83,6 +98,9 @@ func (r *PostRepository) Create(ctx context.Context, p core.Post) (core.Post, er
 
 // GetByID fetches a post by its ID from PostgreSQL, mapping pgx.ErrNoRows to core.ErrPostNotFound.
 func (r *PostRepository) GetByID(ctx context.Context, id int64) (core.Post, error) {
+	ctx, cancel := context.WithTimeout(ctx, getPostTimeout)
+	defer cancel()
+
 	post, err := r.queries.GetPostByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -96,6 +114,9 @@ func (r *PostRepository) GetByID(ctx context.Context, id int64) (core.Post, erro
 
 // Update modifies an existing post in PostgreSQL, mapping pgx.ErrNoRows to core.ErrPostNotFound.
 func (r *PostRepository) Update(ctx context.Context, p core.Post) (core.Post, error) {
+	ctx, cancel := context.WithTimeout(ctx, updatePostTimeout)
+	defer cancel()
+
 	tags := p.Tags
 	if tags == nil {
 		tags = []string{}
@@ -123,6 +144,9 @@ func (r *PostRepository) Update(ctx context.Context, p core.Post) (core.Post, er
 
 // Delete removes a post from PostgreSQL, mapping 0 rows affected to core.ErrPostNotFound.
 func (r *PostRepository) Delete(ctx context.Context, id int64) error {
+	ctx, cancel := context.WithTimeout(ctx, deletePostTimeout)
+	defer cancel()
+
 	rowsAffected, err := r.queries.DeletePost(ctx, id)
 	if err != nil {
 		return err

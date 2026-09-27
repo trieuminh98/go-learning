@@ -2,10 +2,16 @@ package postgres
 
 import (
 	"context"
+	"time"
 
 	"go-learning/internal/core"
 	db "go-learning/internal/db/generated"
 	"go-learning/internal/logic"
+)
+
+const (
+	getCommentsTimeout   = 2 * time.Second
+	createCommentTimeout = 1 * time.Second
 )
 
 var _ logic.CommentRepository = (*CommentRepository)(nil)
@@ -39,6 +45,9 @@ func toCoreComment(row db.GetCommentsByPostIDRow) core.Comment {
 
 // GetByPostID fetches comments for a given post ID, joined with user author details.
 func (r *CommentRepository) GetByPostID(ctx context.Context, postID int64) ([]core.Comment, error) {
+	ctx, cancel := context.WithTimeout(ctx, getCommentsTimeout)
+	defer cancel()
+
 	rows, err := r.queries.GetCommentsByPostID(ctx, postID)
 	if err != nil {
 		return nil, err
@@ -53,6 +62,9 @@ func (r *CommentRepository) GetByPostID(ctx context.Context, postID int64) ([]co
 
 // Create inserts a comment into PostgreSQL.
 func (r *CommentRepository) Create(ctx context.Context, c core.Comment) (core.Comment, error) {
+	ctx, cancel := context.WithTimeout(ctx, createCommentTimeout)
+	defer cancel()
+
 	row, err := r.queries.CreateComment(ctx, db.CreateCommentParams{
 		PostID:  c.PostID,
 		UserID:  c.UserID,
