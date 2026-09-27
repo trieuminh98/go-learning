@@ -6,15 +6,17 @@ import (
 	"go-learning/internal/core"
 )
 
-// UserService orchestrates user use-cases using a UserRepository.
+// UserService orchestrates user use-cases using a UserRepository and FollowerRepository.
 type UserService struct {
-	repo UserRepository
+	repo         UserRepository
+	followerRepo FollowerRepository
 }
 
-// NewUserService constructs a UserService with its required repository dependency.
-func NewUserService(repo UserRepository) *UserService {
+// NewUserService constructs a UserService with its required repository dependencies.
+func NewUserService(repo UserRepository, followerRepo FollowerRepository) *UserService {
 	return &UserService{
-		repo: repo,
+		repo:         repo,
+		followerRepo: followerRepo,
 	}
 }
 
@@ -37,4 +39,20 @@ func (s *UserService) CreateUser(ctx context.Context, u core.User) (core.User, e
 
 	// 2. Delegate persistence to repository
 	return s.repo.Create(ctx, u)
+}
+
+// FollowUser coordinates self-follow validation and delegates relation creation to FollowerRepository.
+func (s *UserService) FollowUser(ctx context.Context, followerID, followedUserID int64) error {
+	if followerID == followedUserID {
+		return core.ErrCannotFollowSelf
+	}
+	return s.followerRepo.Follow(ctx, followerID, followedUserID)
+}
+
+// UnfollowUser coordinates self-unfollow validation and delegates relation removal to FollowerRepository.
+func (s *UserService) UnfollowUser(ctx context.Context, followerID, followedUserID int64) error {
+	if followerID == followedUserID {
+		return core.ErrCannotFollowSelf
+	}
+	return s.followerRepo.Unfollow(ctx, followerID, followedUserID)
 }

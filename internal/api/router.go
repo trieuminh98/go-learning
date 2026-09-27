@@ -63,6 +63,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			private.Get("/users", userHandler.ListUsers)
 			private.Get("/users/{userID}", userHandler.GetUser)
 			private.Post("/users", userHandler.CreateUser)
+			private.Put("/users/{userID}/follow", userHandler.Follow)
+			private.Put("/users/{userID}/unfollow", userHandler.Unfollow)
 
 			// Posts resources
 			private.Get("/posts", postHandler.ListPosts)

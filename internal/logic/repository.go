@@ -35,3 +35,9 @@ type CommentRepository interface {
 	GetByPostID(ctx context.Context, postID int64) ([]core.Comment, error)
 	Create(ctx context.Context, comment core.Comment) (core.Comment, error)
 }
+
+// FollowerRepository defines the persistence contract required for user follow relationships.
+type FollowerRepository interface {
+	Follow(ctx context.Context, followerID int64, followedUserID int64) error
+	Unfollow(ctx context.Context, followerID int64, followedUserID int64) error
+}

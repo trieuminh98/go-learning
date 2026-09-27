@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"go-learning/internal/core"
@@ -91,4 +92,63 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = jsonResponse(w, http.StatusOK, toUserResponse(user))
+}
+
+// resolveActorID resolves the actor user ID performing a relationship action.
+// It checks for a temporary client-provided JSON body payload (pre-auth workaround)
+// and falls back to the authenticated user ID in request context.
+func resolveActorID(r *http.Request) (int64, error) {
+	if r.Body != nil && r.ContentLength > 0 {
+		var input struct {
+			UserID int64 `json:"user_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&input); err == nil && input.UserID > 0 {
+			return input.UserID, nil
+		}
+	}
+	return UserIDFromContext(r.Context())
+}
+
+// Follow handles PUT /v1/users/{userID}/follow.
+func (h *UserHandler) Follow(w http.ResponseWriter, r *http.Request) {
+	targetID, err := readIDParam(r, "userID")
+	if err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	actorID, err := resolveActorID(r)
+	if err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	if err := h.service.FollowUser(r.Context(), actorID, targetID); err != nil {
+		MapDomainErrorToHTTP(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Unfollow handles PUT /v1/users/{userID}/unfollow.
+func (h *UserHandler) Unfollow(w http.ResponseWriter, r *http.Request) {
+	targetID, err := readIDParam(r, "userID")
+	if err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	actorID, err := resolveActorID(r)
+	if err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	if err := h.service.UnfollowUser(r.Context(), actorID, targetID); err != nil {
+		MapDomainErrorToHTTP(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

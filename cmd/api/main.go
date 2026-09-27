@@ -126,7 +126,7 @@ func main() {
 	storage := repository.NewPostgresStorage(queries)
 
 	// 4. Initialize logic services with only the specific repository each requires
-	userService := logic.NewUserService(storage.Users)
+	userService := logic.NewUserService(storage.Users, storage.Followers)
 	truckService := logic.NewTruckService(storage.Trucks)
 	postService := logic.NewPostService(storage.Posts, storage.Comments)
 

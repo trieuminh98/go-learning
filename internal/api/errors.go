@@ -66,7 +66,8 @@ func MapDomainErrorToHTTP(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, core.ErrInvalidCapacity),
 		errors.Is(err, core.ErrOverloaded),
 		errors.Is(err, core.ErrInvalidTitle),
-		errors.Is(err, core.ErrInvalidContent):
+		errors.Is(err, core.ErrInvalidContent),
+		errors.Is(err, core.ErrCannotFollowSelf):
 		badRequest(w, r, err)
 
 	case errors.Is(err, core.ErrUserAlreadyExists),
