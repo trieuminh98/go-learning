@@ -99,6 +99,44 @@ created_at DESC, id DESC
 
 `id` ở đây đóng vai trò là tie-breaker để tránh page boundary bị mơ hồ khi nhiều post có cùng `created_at`.
 
+### 1.4. Membership before Order & Window: Feed Filtering
+
+> **Mental core lọc dữ liệu**:
+>
+> *Filter decides membership; sort decides order; pagination decides window.*
+
+```text
+Candidate posts
+      ↓
+Filter
+→ post nào được phép ở trong result?
+      ↓
+Sort
+→ chúng đứng theo thứ tự nào?
+      ↓
+Paginate
+→ trả về đoạn nào của sequence đó?
+```
+
+> **Nếu rút còn 3 câu**:
+> - **Filter = WHAT belongs**
+> - **Sort = IN WHAT ORDER**
+> - **Pagination = HOW MUCH**
+
+**Ý quan trọng thứ hai cho architecture**:
+> *Client expresses filter intent; server owns filter semantics and SQL.*
+
+```text
+query params
+→ API validate/normalize
+→ Logic meaning
+→ Repository SQL
+```
+
+> **Câu ngắn nhất để nhớ**:
+>
+> *Narrow first, order second, slice last.*
+
 ---
 
 ## 2. Architectural Boundaries & Data Flow
@@ -106,47 +144,48 @@ created_at DESC, id DESC
 Feed adheres strictly to Clean Architecture layer separation. Under no circumstances may the API transport layer communicate directly with the database or bypass business validation.
 
 ```text
-Client Request: GET /v1/feed?page=2&page_size=20
+Client Request: GET /v1/feed?tag=golang&search=context&page=1&page_size=20
       │
       ▼
 ┌────────────────────────────────────────────────────────┐
 │ API Transport Layer (FeedHandler)                      │
 │ ─► resolveActorID (request context / dev fallback)     │
 │ ─► parse & validate query: page, page_size             │
-│ ─► normalize: page>=1 (def:1), size 1..100 (def:20)    │
+│ ─► parse & normalize filters: tag, search (trim, nil)  │
 │ ─► calculate: offset = (page - 1) * page_size          │
 └──────────────────────────┬─────────────────────────────┘
-                           │ actorID, limit, offset
+                           │ actorID, FeedFilter, limit, offset
                            ▼
 ┌────────────────────────────────────────────────────────┐
 │ Logic Domain Layer (FeedService)                       │
 │ ─► Guardrails: cap maxLimit 100, guard offset < 0      │
+│ ─► Owns FeedFilter meaning & use-case invariants       │
 │ ─► Guarantee non-nil slice ([]core.Post{})             │
 └──────────────────────────┬─────────────────────────────┘
-                           │ actorID, limit, offset
+                           │ actorID, FeedFilter, limit, offset
                            ▼
 ┌────────────────────────────────────────────────────────┐
 │ Repository Layer (FeedRepository)                      │
 │ ─► Postgres: 2s bounded timeout via context            │
-│ ─► Single SQL JOIN: LIMIT $limit OFFSET $offset        │
-│ ─► Memory: thread-safe tie-breaker sort & slice offset │
+│ ─► Single SQL JOIN: FILTER → ORDER BY → LIMIT/OFFSET   │
+│ ─► Memory: Follow graph → Tag/Search filter → Sort → Paging │
 └──────────────────────────┬─────────────────────────────┘
                            │
                            ▼
 ┌────────────────────────────────────────────────────────┐
 │ Database (PostgreSQL)                                  │
+│ ─► WHERE follower_id = $1 AND tag filter AND search    │
 │ ─► ORDER BY p.created_at DESC, p.id DESC               │
-│ ─► Index scan via idx_posts_user_created_at            │
-│ ─► Primary Key lookup via followers                    │
+│ ─► LIMIT $limit OFFSET $offset                         │
 └────────────────────────────────────────────────────────┘
 ```
 
 | Tầng | Thành phần / Contract | Trách nhiệm & Ranh giới |
 | :--- | :--- | :--- |
-| **API** | `FeedHandler`<br>`GET /v1/feed` | Giải mã `actorID` và parse query `limit`. Serialize kết quả sang `[]PostResponse`. Tuyệt đối không chứa business rules hoặc SQL. |
-| **Logic** | `FeedService`<br>`GetFeed(ctx, actorID, limit)` | Thực thi quy tắc nghiệp vụ: chuẩn hóa limit (`default = 20`, `max = 100`, `limit <= 0` fallback). Đảm bảo slice rỗng khi không có bài đăng. |
-| **Repository** | `FeedRepository`<br>`GetUserFeed(ctx, userID, limit)` | Đóng gói câu truy vấn SQL JOIN. Đặt deadline 2 giây (`context.WithTimeout`). Map dữ liệu sang `[]core.Post`. |
-| **Database** | `PostgreSQL`<br>`posts`, `followers` | Lưu trữ dữ liệu quan hệ và bài viết. Tối ưu qua `idx_posts_user_created_at` và composite PK của `followers`. |
+| **API** | `FeedHandler`<br>`GET /v1/feed` | Giải mã `actorID`, trích xuất `tag`, `search`, `page`, `page_size`. Đóng gói thành `logic.FeedFilter`. Serialize kết quả sang `[]PostResponse`. Tuyệt đối không chứa business rules hoặc SQL. |
+| **Logic** | `FeedService`<br>`GetFeed(ctx, actorID, filter, limit, offset)` | Thực thi quy tắc nghiệp vụ: sở hữu ý nghĩa `FeedFilter`, chuẩn hóa limit (`default = 20`, `max = 100`, `offset < 0` fallback). Đảm bảo non-nil slice khi không có kết quả. |
+| **Repository** | `FeedRepository`<br>`GetUserFeed(ctx, userID, filter, limit, offset)` | Đóng gói câu truy vấn SQL JOIN có lọc theo vị từ tùy chọn (`Tag`, `Search`), sắp xếp và phân trang. Đặt deadline 2 giây (`context.WithTimeout`). Map dữ liệu sang `[]core.Post`. |
+| **Database** | `PostgreSQL`<br>`posts`, `followers` | Lưu trữ dữ liệu quan hệ và bài viết. Thực thi lọc, sắp xếp qua `idx_posts_user_created_at` và composite PK của `followers`. |
 
 ---
 
@@ -194,12 +233,14 @@ SELECT
 FROM posts p
 JOIN followers f
   ON f.followed_user_id = p.user_id
-WHERE f.follower_id = $1
+WHERE f.follower_id = @follower_id
+  AND (@tag::text = '' OR @tag = ANY(p.tags))
+  AND (@search::text = '' OR (p.title ILIKE '%' || @search || '%' OR p.content ILIKE '%' || @search || '%'))
 ORDER BY
     p.created_at DESC,
     p.id DESC
-LIMIT $2
-OFFSET $3;
+LIMIT sqlc.arg('limit')
+OFFSET sqlc.arg('offset');
 ```
 
 ### 4.3. Index Coverage
@@ -275,7 +316,73 @@ CURSOR Pagination (Future):
 
 ---
 
-## 6. Pre-Auth Actor Identity Isolation
+## 6. Feed Filtering: Intent, Semantics & SQL
+
+### 6.1. The Three Questions of Feed Generation
+
+Mọi feed query chuẩn mực đều phải trả lời lần lượt 3 câu hỏi tách biệt:
+
+1. **Filter (WHAT belongs)**: Bản ghi nào thuộc về tập kết quả?
+   - Quan hệ Follower Graph lọc ra các `candidate posts`.
+   - Vị từ `tag` loại bỏ các bài viết không chứa thẻ yêu cầu (`$tag = ANY(p.tags)`).
+   - Vị từ `search` loại bỏ các bài viết không chứa từ khóa trong tiêu đề hay nội dung (`ILIKE`).
+2. **Sort (IN WHAT ORDER)**: Thứ tự sắp xếp là gì?
+   - `ORDER BY p.created_at DESC, p.id DESC` tạo ra chuỗi tuần tự ổn định (stable sequence).
+3. **Pagination (HOW MUCH)**: Trả về bao nhiêu và từ vị trí nào?
+   - `LIMIT` và `OFFSET` cắt một cửa sổ (window) cụ thể trên chuỗi tuần tự đã lọc.
+
+```text
+Candidate posts
+      ↓
+Filter
+→ post nào được phép ở trong result?
+      ↓
+Sort
+→ chúng đứng theo thứ tự nào?
+      ↓
+Paginate
+→ trả về đoạn nào của sequence đó?
+```
+
+> **Nguyên tắc bất biến**: *Narrow first, order second, slice last.*
+>
+> Nếu đảo lộn thứ tự này (ví dụ: phân trang trước rồi mới lọc trên bộ nhớ Go), kích thước trang sẽ bị thiếu hụt hoặc trang bị rỗng giả mạo dù cơ sở dữ liệu vẫn còn bản ghi phù hợp.
+
+### 6.2. Separation of Concerns: Client Intent vs Server Semantics
+
+> *Client expresses filter intent; server owns filter semantics and SQL.*
+
+```text
+query params
+→ API validate/normalize
+→ Logic meaning
+→ Repository SQL
+```
+
+```text
+Client (GET /v1/feed?tag=golang&search=context)
+  │
+  ▼ expresses intent (raw query params)
+API Layer (FeedHandler)
+  │ validates, trims whitespace, maps empty to nil
+  ▼ FeedFilter{Tag: *string, Search: *string}
+Logic Layer (FeedService)
+  │ owns business invariants (e.g. tag/search scope, default limits)
+  ▼ FeedFilter
+Repository Layer (postgres.FeedRepository / memory.FeedRepository)
+  │ owns SQL predicates & execution
+  ▼
+PostgreSQL / In-Memory Store
+```
+
+- **Client**: Chỉ biểu đạt *ý định* lọc thông qua query params (`tag`, `search`).
+- **Server**: Toàn quyền sở hữu *ngữ nghĩa* của bộ lọc và cách hiện thực bằng SQL.
+  - API biến đổi `""` thành `nil` (coi như không lọc).
+  - Tầng SQL dùng static query `(@tag::text = '' OR @tag = ANY(p.tags))` thay vì nối chuỗi SQL động, bảo vệ hệ thống tuyệt đối khỏi SQL Injection và tận dụng trọn vẹn kiểm tra kiểu tĩnh của `sqlc`.
+
+---
+
+## 7. Pre-Auth Actor Identity Isolation
 
 Trong giai đoạn phát triển khi JWT Middleware chưa cấp phát token đầy đủ, mã định danh người dùng (`actorID`) được giải quyết linh hoạt tại tầng transport:
 

@@ -84,9 +84,11 @@ SELECT
 FROM posts p
 JOIN followers f
   ON f.followed_user_id = p.user_id
-WHERE f.follower_id = $1
+WHERE f.follower_id = @follower_id
+  AND (@tag::text = '' OR @tag = ANY(p.tags))
+  AND (@search::text = '' OR (p.title ILIKE '%' || @search || '%' OR p.content ILIKE '%' || @search || '%'))
 ORDER BY
     p.created_at DESC,
     p.id DESC
-LIMIT $2
-OFFSET $3;
+LIMIT sqlc.arg('limit')
+OFFSET sqlc.arg('offset');

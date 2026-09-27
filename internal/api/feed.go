@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"go-learning/internal/logic"
 )
@@ -50,7 +51,15 @@ func (h *FeedHandler) GetFeed(w http.ResponseWriter, r *http.Request) {
 	offset := (page - 1) * pageSize
 	limit := pageSize
 
-	posts, err := h.service.GetFeed(r.Context(), actorID, limit, offset)
+	var filter logic.FeedFilter
+	if tag := strings.TrimSpace(r.URL.Query().Get("tag")); tag != "" {
+		filter.Tag = &tag
+	}
+	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
+		filter.Search = &search
+	}
+
+	posts, err := h.service.GetFeed(r.Context(), actorID, filter, limit, offset)
 	if err != nil {
 		MapDomainErrorToHTTP(w, r, err)
 		return

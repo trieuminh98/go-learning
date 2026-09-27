@@ -118,21 +118,31 @@ FROM posts p
 JOIN followers f
   ON f.followed_user_id = p.user_id
 WHERE f.follower_id = $1
+  AND ($2::text = '' OR $2 = ANY(p.tags))
+  AND ($3::text = '' OR (p.title ILIKE '%' || $3 || '%' OR p.content ILIKE '%' || $3 || '%'))
 ORDER BY
     p.created_at DESC,
     p.id DESC
-LIMIT $2
-OFFSET $3
+LIMIT $5
+OFFSET $4
 `
 
 type GetUserFeedParams struct {
-	FollowerID int64 `json:"follower_id"`
-	Limit      int32 `json:"limit"`
-	Offset     int32 `json:"offset"`
+	FollowerID int64  `json:"follower_id"`
+	Tag        string `json:"tag"`
+	Search     string `json:"search"`
+	Offset     int32  `json:"offset"`
+	Limit      int32  `json:"limit"`
 }
 
 func (q *Queries) GetUserFeed(ctx context.Context, arg GetUserFeedParams) ([]Post, error) {
-	rows, err := q.db.Query(ctx, getUserFeed, arg.FollowerID, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, getUserFeed,
+		arg.FollowerID,
+		arg.Tag,
+		arg.Search,
+		arg.Offset,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

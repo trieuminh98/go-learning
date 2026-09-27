@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"go-learning/internal/core"
@@ -27,8 +28,8 @@ func NewFeedRepository(postRepo *PostRepository, followerRepo *FollowerRepositor
 	}
 }
 
-// GetUserFeed returns chronological posts from users followed by userID, bounded by limit and offset.
-func (r *FeedRepository) GetUserFeed(ctx context.Context, userID int64, limit int, offset int) ([]core.Post, error) {
+// GetUserFeed returns chronological posts from users followed by userID, optionally filtered, bounded by limit and offset.
+func (r *FeedRepository) GetUserFeed(ctx context.Context, userID int64, filter logic.FeedFilter, limit int, offset int) ([]core.Post, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -53,13 +54,39 @@ func (r *FeedRepository) GetUserFeed(ctx context.Context, userID int64, limit in
 		return []core.Post{}, nil
 	}
 
-	// 2. Filter posts authored by followed users
+	// 2. Filter posts authored by followed users and apply optional filters
 	r.postRepo.mu.RLock()
 	var feedPosts []core.Post
 	for _, p := range r.postRepo.posts {
-		if followed[p.UserID] {
-			feedPosts = append(feedPosts, p)
+		if !followed[p.UserID] {
+			continue
 		}
+
+		// Optional Tag filter: post must contain tag
+		if filter.Tag != nil && *filter.Tag != "" {
+			hasTag := false
+			for _, t := range p.Tags {
+				if t == *filter.Tag {
+					hasTag = true
+					break
+				}
+			}
+			if !hasTag {
+				continue
+			}
+		}
+
+		// Optional Search filter: case-insensitive match on Title or Content
+		if filter.Search != nil && *filter.Search != "" {
+			searchLower := strings.ToLower(*filter.Search)
+			titleMatch := strings.Contains(strings.ToLower(p.Title), searchLower)
+			contentMatch := strings.Contains(strings.ToLower(p.Content), searchLower)
+			if !titleMatch && !contentMatch {
+				continue
+			}
+		}
+
+		feedPosts = append(feedPosts, p)
 	}
 	r.postRepo.mu.RUnlock()
 
