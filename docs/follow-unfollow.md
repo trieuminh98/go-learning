@@ -6,14 +6,45 @@ This document details the architectural principles, mental models, and implement
 
 ## 1. Core Mental Models
 
+> **Core mental cốt lõi**:
+>
+> *Relationships are data; business semantics are the real decision.*
+
+```text
+Actor ──relationship──> Target
+
+Với Follow:
+A ──follows──> B
+
+thì DB chỉ đang lưu fact đó:
+(follower_id=A, followed_user_id=B)
+```
+
+Phần giá trị thật sự cần con người quyết định:
+- `self-follow allowed?` ──► Reject in Logic layer (`core.ErrCannotFollowSelf` ──► `400 Bad Request`)
+- `duplicate follow = 204 hay 409?` ──► Composite PK violation ──► `409 Conflict`
+- `unfollow missing = 204 hay 404?` ──► Idempotent mutation ──► `204 No Content`
+- `actor lấy từ auth context hay payload?` ──► Isolate payload workaround in transport, transition to auth context
+
+Một khi contract và invariants đã chốt:
+
+```text
+spec + invariants + tests
+        ↓
+    AI / codegen
+        ↓
+   implementation
+```
+
+> **Đúc kết ngắn nhất**:
+> - **Code is regenerable.**
+> - **Decisions and invariants are the asset.**
+
+---
+
 ### 1.1. Actor vs Target Separation
 
-> **Core mental**:
->
-> ```text
-> Actor ≠ Target
-> ```
->
+> **Actor ≠ Target**:
 > *The entity performing the action (`actorID` / `follower_id`) must never be confused with the entity being acted upon (`targetID` / `followed_user_id`).*
 
 - **Actor (Follower)**: The authenticated subject initiating the request.
