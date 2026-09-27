@@ -16,6 +16,7 @@ type RouterConfig struct {
 	UserService  *logic.UserService
 	TruckService *logic.TruckService
 	PostService  *logic.PostService
+	FeedService  *logic.FeedService
 	Validator    *validator.Validate
 }
 
@@ -27,6 +28,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	userHandler := NewUserHandler(cfg.UserService)
 	truckHandler := NewTruckHandler(cfg.TruckService)
 	postHandler := NewPostHandler(cfg.PostService, cfg.Validator)
+	feedHandler := NewFeedHandler(cfg.FeedService)
 
 	// 1. Gateway global cross-cutting middleware stack
 	r.Use(gateway.RecoveryMiddleware)
@@ -72,6 +74,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			private.Get("/posts/{postID}", postHandler.GetPost)
 			private.Delete("/posts/{postID}", postHandler.DeletePost)
 			private.With(postHandler.PostContextMiddleware).Patch("/posts/{postID}", postHandler.UpdatePost)
+
+			// Feed resources
+			private.Get("/feed", feedHandler.GetFeed)
 		})
 	})
 

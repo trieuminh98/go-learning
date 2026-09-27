@@ -41,16 +41,25 @@ type Application struct {
 	userService  *logic.UserService
 	truckService *logic.TruckService
 	postService  *logic.PostService
+	feedService  *logic.FeedService
 	validator    *validator.Validate
 }
 
 // NewApplication constructs the Application root with injected dependencies.
-func NewApplication(cfg Config, userService *logic.UserService, truckService *logic.TruckService, postService *logic.PostService, validator *validator.Validate) *Application {
+func NewApplication(
+	cfg Config,
+	userService *logic.UserService,
+	truckService *logic.TruckService,
+	postService *logic.PostService,
+	feedService *logic.FeedService,
+	validator *validator.Validate,
+) *Application {
 	return &Application{
 		config:       cfg,
 		userService:  userService,
 		truckService: truckService,
 		postService:  postService,
+		feedService:  feedService,
 		validator:    validator,
 	}
 }
@@ -62,6 +71,7 @@ func (app *Application) routes() http.Handler {
 		UserService:  app.userService,
 		TruckService: app.truckService,
 		PostService:  app.postService,
+		FeedService:  app.feedService,
 		Validator:    app.validator,
 	})
 }
@@ -129,12 +139,13 @@ func main() {
 	userService := logic.NewUserService(storage.Users, storage.Followers)
 	truckService := logic.NewTruckService(storage.Trucks)
 	postService := logic.NewPostService(storage.Posts, storage.Comments)
+	feedService := logic.NewFeedService(storage.Feed)
 
 	// 5. Initialize shared request validator
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
 	// 6. Instantiate Application composition root
-	app := NewApplication(cfg, userService, truckService, postService, validate)
+	app := NewApplication(cfg, userService, truckService, postService, feedService, validate)
 
 	// 7. Start server
 	if err := app.run(); err != nil {

@@ -16,16 +16,25 @@ type Storage struct {
 	Posts     logic.PostRepository
 	Comments  logic.CommentRepository
 	Followers logic.FollowerRepository
+	Feed      logic.FeedRepository
 }
 
 // NewStorage initializes and bundles concrete in-memory repository implementations.
 func NewStorage() Storage {
+	users := memory.NewUserRepository()
+	trucks := memory.NewTruckRepository()
+	posts := memory.NewPostRepository()
+	comments := memory.NewCommentRepository()
+	followers := memory.NewFollowerRepository()
+	feed := memory.NewFeedRepository(posts, followers)
+
 	return Storage{
-		Users:     memory.NewUserRepository(),
-		Trucks:    memory.NewTruckRepository(),
-		Posts:     memory.NewPostRepository(),
-		Comments:  memory.NewCommentRepository(),
-		Followers: memory.NewFollowerRepository(),
+		Users:     users,
+		Trucks:    trucks,
+		Posts:     posts,
+		Comments:  comments,
+		Followers: followers,
+		Feed:      feed,
 	}
 }
 
@@ -37,5 +46,6 @@ func NewPostgresStorage(queries *db.Queries) Storage {
 		Posts:     postgres.NewPostRepository(queries),
 		Comments:  postgres.NewCommentRepository(queries),
 		Followers: postgres.NewFollowerRepository(queries),
+		Feed:      postgres.NewFeedRepository(queries),
 	}
 }

@@ -41,3 +41,8 @@ type FollowerRepository interface {
 	Follow(ctx context.Context, followerID int64, followedUserID int64) error
 	Unfollow(ctx context.Context, followerID int64, followedUserID int64) error
 }
+
+// FeedRepository defines the persistence contract required for retrieving user feeds.
+type FeedRepository interface {
+	GetUserFeed(ctx context.Context, userID int64, limit int) ([]core.Post, error)
+}

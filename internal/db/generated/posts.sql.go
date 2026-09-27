@@ -104,6 +104,58 @@ func (q *Queries) GetPostByID(ctx context.Context, id int64) (Post, error) {
 	return i, err
 }
 
+const getUserFeed = `-- name: GetUserFeed :many
+SELECT
+    p.id,
+    p.user_id,
+    p.title,
+    p.content,
+    p.tags,
+    p.created_at,
+    p.updated_at,
+    p.version
+FROM posts p
+JOIN followers f
+  ON f.followed_user_id = p.user_id
+WHERE f.follower_id = $1
+ORDER BY p.created_at DESC
+LIMIT $2
+`
+
+type GetUserFeedParams struct {
+	FollowerID int64 `json:"follower_id"`
+	Limit      int32 `json:"limit"`
+}
+
+func (q *Queries) GetUserFeed(ctx context.Context, arg GetUserFeedParams) ([]Post, error) {
+	rows, err := q.db.Query(ctx, getUserFeed, arg.FollowerID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Post{}
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Title,
+			&i.Content,
+			&i.Tags,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Version,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPosts = `-- name: ListPosts :many
 SELECT
     id,

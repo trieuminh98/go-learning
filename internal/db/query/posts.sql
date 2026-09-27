@@ -70,3 +70,20 @@ RETURNING
 -- name: DeletePost :execrows
 DELETE FROM posts
 WHERE id = $1;
+
+-- name: GetUserFeed :many
+SELECT
+    p.id,
+    p.user_id,
+    p.title,
+    p.content,
+    p.tags,
+    p.created_at,
+    p.updated_at,
+    p.version
+FROM posts p
+JOIN followers f
+  ON f.followed_user_id = p.user_id
+WHERE f.follower_id = $1
+ORDER BY p.created_at DESC
+LIMIT $2;

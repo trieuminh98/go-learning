@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"go-learning/internal/core"
 	"go-learning/internal/logic"
@@ -94,10 +95,15 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	_ = jsonResponse(w, http.StatusOK, toUserResponse(user))
 }
 
-// resolveActorID resolves the actor user ID performing a relationship action.
-// It checks for a temporary client-provided JSON body payload (pre-auth workaround)
+// resolveActorID resolves the actor user ID performing a relationship or feed action.
+// It checks for a temporary client-provided query param (GET) or JSON body payload (PUT/POST)
 // and falls back to the authenticated user ID in request context.
 func resolveActorID(r *http.Request) (int64, error) {
+	if queryID := r.URL.Query().Get("user_id"); queryID != "" {
+		if id, err := strconv.ParseInt(queryID, 10, 64); err == nil && id > 0 {
+			return id, nil
+		}
+	}
 	if r.Body != nil && r.ContentLength > 0 {
 		var input struct {
 			UserID int64 `json:"user_id"`
