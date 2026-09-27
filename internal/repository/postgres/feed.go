@@ -29,13 +29,14 @@ func NewFeedRepository(queries *db.Queries) *FeedRepository {
 }
 
 // GetUserFeed retrieves the chronological feed for a user with bounded query timeout.
-func (r *FeedRepository) GetUserFeed(ctx context.Context, userID int64, limit int) ([]core.Post, error) {
+func (r *FeedRepository) GetUserFeed(ctx context.Context, userID int64, limit int, offset int) ([]core.Post, error) {
 	ctx, cancel := context.WithTimeout(ctx, feedTimeout)
 	defer cancel()
 
 	rows, err := r.queries.GetUserFeed(ctx, db.GetUserFeedParams{
 		FollowerID: userID,
 		Limit:      int32(limit),
+		Offset:     int32(offset),
 	})
 	if err != nil {
 		return nil, err

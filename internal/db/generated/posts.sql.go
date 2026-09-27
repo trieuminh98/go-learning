@@ -118,17 +118,21 @@ FROM posts p
 JOIN followers f
   ON f.followed_user_id = p.user_id
 WHERE f.follower_id = $1
-ORDER BY p.created_at DESC
+ORDER BY
+    p.created_at DESC,
+    p.id DESC
 LIMIT $2
+OFFSET $3
 `
 
 type GetUserFeedParams struct {
 	FollowerID int64 `json:"follower_id"`
 	Limit      int32 `json:"limit"`
+	Offset     int32 `json:"offset"`
 }
 
 func (q *Queries) GetUserFeed(ctx context.Context, arg GetUserFeedParams) ([]Post, error) {
-	rows, err := q.db.Query(ctx, getUserFeed, arg.FollowerID, arg.Limit)
+	rows, err := q.db.Query(ctx, getUserFeed, arg.FollowerID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

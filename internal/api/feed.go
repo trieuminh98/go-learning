@@ -25,14 +25,32 @@ func (h *FeedHandler) GetFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := 20
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
-			limit = parsed
+	page := 1
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if parsed, err := strconv.Atoi(pageStr); err == nil && parsed > 0 {
+			page = parsed
 		}
 	}
 
-	posts, err := h.service.GetFeed(r.Context(), actorID, limit)
+	pageSize := 20
+	if sizeStr := r.URL.Query().Get("page_size"); sizeStr != "" {
+		if parsed, err := strconv.Atoi(sizeStr); err == nil && parsed > 0 {
+			pageSize = parsed
+		}
+	} else if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			pageSize = parsed
+		}
+	}
+
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	offset := (page - 1) * pageSize
+	limit := pageSize
+
+	posts, err := h.service.GetFeed(r.Context(), actorID, limit, offset)
 	if err != nil {
 		MapDomainErrorToHTTP(w, r, err)
 		return

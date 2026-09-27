@@ -44,5 +44,5 @@ type FollowerRepository interface {
 
 // FeedRepository defines the persistence contract required for retrieving user feeds.
 type FeedRepository interface {
-	GetUserFeed(ctx context.Context, userID int64, limit int) ([]core.Post, error)
+	GetUserFeed(ctx context.Context, userID int64, limit int, offset int) ([]core.Post, error)
 }

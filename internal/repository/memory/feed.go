@@ -27,8 +27,8 @@ func NewFeedRepository(postRepo *PostRepository, followerRepo *FollowerRepositor
 	}
 }
 
-// GetUserFeed returns chronological posts from users followed by userID, bounded by limit.
-func (r *FeedRepository) GetUserFeed(ctx context.Context, userID int64, limit int) ([]core.Post, error) {
+// GetUserFeed returns chronological posts from users followed by userID, bounded by limit and offset.
+func (r *FeedRepository) GetUserFeed(ctx context.Context, userID int64, limit int, offset int) ([]core.Post, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -63,12 +63,24 @@ func (r *FeedRepository) GetUserFeed(ctx context.Context, userID int64, limit in
 	}
 	r.postRepo.mu.RUnlock()
 
-	// 3. Sort posts newest first (created_at DESC)
+	// 3. Sort posts deterministic newest first: created_at DESC, id DESC
 	sort.Slice(feedPosts, func(i, j int) bool {
+		if feedPosts[i].CreatedAt.Equal(feedPosts[j].CreatedAt) {
+			return feedPosts[i].ID > feedPosts[j].ID
+		}
 		return feedPosts[i].CreatedAt.After(feedPosts[j].CreatedAt)
 	})
 
-	// 4. Bound results by limit
+	// 4. Apply offset
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= len(feedPosts) {
+		return []core.Post{}, nil
+	}
+	feedPosts = feedPosts[offset:]
+
+	// 5. Bound results by limit
 	if limit > 0 && len(feedPosts) > limit {
 		feedPosts = feedPosts[:limit]
 	}

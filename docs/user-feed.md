@@ -61,6 +61,44 @@ posts     ──► lookup by user_id + created_at DESC ──► idx_posts_user
 > - **Query materializes the feed.**
 > - **Scale decides the optimization strategy.**
 
+### 1.3. Sequence before Chunks: Pagination & Sorting
+
+> **Mental core phân trang & sắp xếp**:
+>
+> *Sorting defines the sequence. Pagination only slices that sequence.*
+
+```text
+Filter/result set
+      ↓
+stable ORDER BY
+      ↓
+ordered sequence
+      ↓
+pagination
+      ↓
+page/chunk
+```
+
+**Hai ý phụ quan trọng**:
+1. `No stable ORDER BY → no stable pagination`: Không có thứ tự ổn định thì không thể có phân trang ổn định.
+2. Bản chất hai mô hình phân trang:
+   - `OFFSET` → skip N rows
+   - `Cursor` → continue after a known row
+
+> **Câu ngắn nhất để nhớ**:
+>
+> *Order first, paginate second.*
+
+**Với Feed hiện tại**:
+```text
+created_at DESC, id DESC
+→ stable order
+→ LIMIT/OFFSET now
+→ cursor later if needed
+```
+
+`id` ở đây đóng vai trò là tie-breaker để tránh page boundary bị mơ hồ khi nhiều post có cùng `created_at`.
+
 ---
 
 ## 2. Architectural Boundaries & Data Flow
@@ -68,33 +106,36 @@ posts     ──► lookup by user_id + created_at DESC ──► idx_posts_user
 Feed adheres strictly to Clean Architecture layer separation. Under no circumstances may the API transport layer communicate directly with the database or bypass business validation.
 
 ```text
-Client Request: GET /v1/feed?limit=25
+Client Request: GET /v1/feed?page=2&page_size=20
       │
       ▼
 ┌────────────────────────────────────────────────────────┐
 │ API Transport Layer (FeedHandler)                      │
 │ ─► resolveActorID (request context / dev fallback)     │
-│ ─► parse optional query parameter limit                │
+│ ─► parse & validate query: page, page_size             │
+│ ─► normalize: page>=1 (def:1), size 1..100 (def:20)    │
+│ ─► calculate: offset = (page - 1) * page_size          │
 └──────────────────────────┬─────────────────────────────┘
-                           │ actorID, rawLimit
+                           │ actorID, limit, offset
                            ▼
 ┌────────────────────────────────────────────────────────┐
 │ Logic Domain Layer (FeedService)                       │
-│ ─► Bounded limit guardrails: default = 20, max = 100   │
+│ ─► Guardrails: cap maxLimit 100, guard offset < 0      │
 │ ─► Guarantee non-nil slice ([]core.Post{})             │
 └──────────────────────────┬─────────────────────────────┘
-                           │ actorID, boundedLimit
+                           │ actorID, limit, offset
                            ▼
 ┌────────────────────────────────────────────────────────┐
 │ Repository Layer (FeedRepository)                      │
 │ ─► Postgres: 2s bounded timeout via context            │
-│ ─► Single SQL JOIN over posts and followers            │
-│ ─► Memory: thread-safe candidate filter & sort         │
+│ ─► Single SQL JOIN: LIMIT $limit OFFSET $offset        │
+│ ─► Memory: thread-safe tie-breaker sort & slice offset │
 └──────────────────────────┬─────────────────────────────┘
                            │
                            ▼
 ┌────────────────────────────────────────────────────────┐
 │ Database (PostgreSQL)                                  │
+│ ─► ORDER BY p.created_at DESC, p.id DESC               │
 │ ─► Index scan via idx_posts_user_created_at            │
 │ ─► Primary Key lookup via followers                    │
 └────────────────────────────────────────────────────────┘
@@ -154,8 +195,11 @@ FROM posts p
 JOIN followers f
   ON f.followed_user_id = p.user_id
 WHERE f.follower_id = $1
-ORDER BY p.created_at DESC
-LIMIT $2;
+ORDER BY
+    p.created_at DESC,
+    p.id DESC
+LIMIT $2
+OFFSET $3;
 ```
 
 ### 4.3. Index Coverage
@@ -169,36 +213,65 @@ LIMIT $2;
    ```sql
    CREATE INDEX IF NOT EXISTS idx_posts_user_created_at ON posts(user_id, created_at DESC);
    ```
-   Index này cho phép PostgreSQL duyệt trực tiếp theo thứ tự thời gian giảm dần của từng candidate user mà không cần sort lại tập dữ liệu.
+   Index này cho phép PostgreSQL duyệt trực tiếp theo thứ tự thời gian giảm dần của từng candidate user. Tie-breaker `p.id DESC` được xử lý tự nhiên trên tập con nhỏ đã được lọc và sắp xếp.
 
 ---
 
-## 5. Defensive Pagination Guardrails
+## 5. Defensive Offset Pagination & Deterministic Sorting
 
-Một lỗi phổ biến là cho phép client yêu cầu số lượng bản ghi không giới hạn (`unbounded queries`):
+### 5.1. Deterministic Sorting (Tie-Breaker)
+
+Nếu chỉ sắp xếp theo `created_at DESC`, các bài viết có cùng timestamp sẽ có thứ tự bất định. Bắt buộc phải có `p.id DESC` làm khóa phụ:
+
+```sql
+ORDER BY
+    p.created_at DESC,
+    p.id DESC
+```
+
+Vì `id` là Primary Key duy nhất tuyệt đối, mọi bản ghi trong dãy dữ liệu đều có vị trí cố định, ngăn ngừa triệt để hiện tượng bài viết bị trôi hoặc lặp giữa các trang.
+
+### 5.2. API Parameter Normalization
+
+Tầng API chịu trách nhiệm chuyển đổi và validate các tham số người dùng trước khi chuyển xuống Logic/Repository:
 
 ```go
-// Tầng Logic bắt buộc phải áp dụng trần an toàn:
-const (
-    defaultFeedLimit = 20
-    maxFeedLimit     = 100
-)
-
-func (s *FeedService) GetFeed(ctx context.Context, actorID int64, limit int) ([]core.Post, error) {
-    if limit <= 0 {
-        limit = defaultFeedLimit
-    }
-    if limit > maxFeedLimit {
-        limit = maxFeedLimit
-    }
-    ...
+// Normalization rules tại API layer:
+page := 1
+if parsed, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && parsed > 0 {
+    page = parsed
 }
+
+pageSize := 20
+if parsed, err := strconv.Atoi(r.URL.Query().Get("page_size")); err == nil && parsed > 0 {
+    pageSize = parsed
+}
+
+// Giới hạn trần phòng vệ chống DoS / cạn kiệt RAM
+if pageSize > 100 {
+    pageSize = 100
+}
+
+offset := (page - 1) * pageSize
+limit := pageSize
 ```
 
 Lợi ích:
-- Ngăn chặn tấn công DoS vô tình hay cố ý (client gửi `?limit=1000000`).
-- Giữ dung lượng RAM cho mỗi request nhỏ và dự đoán được.
-- Đảm bảo thời gian query luôn nằm trong ngưỡng timeout 2 giây của repository.
+- `offset` luôn không âm (`>= 0`), loại bỏ nguy cơ lỗi cú pháp SQL hoặc tràn số nguyên.
+- Không để lọt chuỗi query thô vào tầng Logic hay Repository.
+- Giữ dung lượng RAM và thời gian query luôn nằm trong ngưỡng timeout 2 giây của database.
+
+### 5.3. Roadmap: Offset vs Keyset/Cursor Pagination
+
+```text
+OFFSET Pagination:
+→ skip N rows: (page - 1) * page_size
+→ Đơn giản, hỗ trợ jump-to-page, phù hợp quy mô vừa và nhỏ.
+
+CURSOR Pagination (Future):
+→ seek sau bản ghi đã biết: WHERE (created_at, id) < ($last_time, $last_id)
+→ Hiệu năng O(1) tuyệt đối, chống trôi bài khi dữ liệu được ghi liên tục.
+```
 
 ---
 

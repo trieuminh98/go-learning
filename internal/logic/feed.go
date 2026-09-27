@@ -23,16 +23,19 @@ func NewFeedService(repo FeedRepository) *FeedService {
 
 // GetFeed retrieves a bounded chronological feed for the specified actor.
 // Enforces business invariants: default limit of 20, strict upper ceiling of 100,
-// and ensures a non-nil slice is returned on empty feeds.
-func (s *FeedService) GetFeed(ctx context.Context, actorID int64, limit int) ([]core.Post, error) {
+// non-negative offset, and ensures a non-nil slice is returned on empty feeds.
+func (s *FeedService) GetFeed(ctx context.Context, actorID int64, limit int, offset int) ([]core.Post, error) {
 	if limit <= 0 {
 		limit = defaultFeedLimit
 	}
 	if limit > maxFeedLimit {
 		limit = maxFeedLimit
 	}
+	if offset < 0 {
+		offset = 0
+	}
 
-	posts, err := s.repo.GetUserFeed(ctx, actorID, limit)
+	posts, err := s.repo.GetUserFeed(ctx, actorID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

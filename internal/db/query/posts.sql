@@ -85,5 +85,8 @@ FROM posts p
 JOIN followers f
   ON f.followed_user_id = p.user_id
 WHERE f.follower_id = $1
-ORDER BY p.created_at DESC
-LIMIT $2;
+ORDER BY
+    p.created_at DESC,
+    p.id DESC
+LIMIT $2
+OFFSET $3;
