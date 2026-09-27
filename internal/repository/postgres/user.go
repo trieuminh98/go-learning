@@ -4,12 +4,18 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"go-learning/internal/core"
 	db "go-learning/internal/db/generated"
 	"go-learning/internal/logic"
+)
+
+const (
+	getUserTimeout = 500 * time.Millisecond
 )
 
 // Ensure UserRepository satisfies logic.UserRepository interface at compile time.
@@ -64,4 +70,20 @@ func (r *UserRepository) Create(ctx context.Context, u core.User) (core.User, er
 	}
 
 	return toCoreUser(created), nil
+}
+
+// GetByID fetches a user by their ID from PostgreSQL, mapping pgx.ErrNoRows to core.ErrUserNotFound.
+func (r *UserRepository) GetByID(ctx context.Context, id int64) (core.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, getUserTimeout)
+	defer cancel()
+
+	user, err := r.queries.GetUserByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return core.User{}, core.ErrUserNotFound
+		}
+		return core.User{}, err
+	}
+
+	return toCoreUser(user), nil
 }

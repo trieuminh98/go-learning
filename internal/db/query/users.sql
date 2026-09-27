@@ -10,3 +10,8 @@ INSERT INTO users (
 )
 VALUES ($1, $2)
 RETURNING id, first_name, last_name, created_at;
+
+-- name: GetUserByID :one
+SELECT id, first_name, last_name, created_at
+FROM users
+WHERE id = $1;

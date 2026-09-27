@@ -10,6 +10,7 @@ import (
 // Kept small, context-aware, and free of database-specific or transport-specific types.
 type UserRepository interface {
 	List(ctx context.Context) ([]core.User, error)
+	GetByID(ctx context.Context, id int64) (core.User, error)
 	Create(ctx context.Context, user core.User) (core.User, error)
 }
 

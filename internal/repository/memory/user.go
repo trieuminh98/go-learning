@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -66,4 +67,21 @@ func (r *UserRepository) Create(ctx context.Context, u core.User) (core.User, er
 	r.users[u.ID] = u
 
 	return u, nil
+}
+
+// GetByID fetches a user by their stringified ID from memory, returning core.ErrUserNotFound if missing.
+func (r *UserRepository) GetByID(ctx context.Context, id int64) (core.User, error) {
+	if err := ctx.Err(); err != nil {
+		return core.User{}, err
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	user, ok := r.users[strconv.FormatInt(id, 10)]
+	if !ok {
+		return core.User{}, core.ErrUserNotFound
+	}
+
+	return user, nil
 }

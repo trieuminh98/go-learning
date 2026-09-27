@@ -75,3 +75,20 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	_ = jsonResponse(w, http.StatusCreated, toUserResponse(created))
 }
+
+// GetUser handles GET /v1/users/{userID}.
+func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
+	userID, err := readIDParam(r, "userID")
+	if err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	user, err := h.service.GetUser(r.Context(), userID)
+	if err != nil {
+		MapDomainErrorToHTTP(w, r, err)
+		return
+	}
+
+	_ = jsonResponse(w, http.StatusOK, toUserResponse(user))
+}

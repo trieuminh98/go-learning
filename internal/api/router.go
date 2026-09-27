@@ -61,6 +61,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 			// Users resources
 			private.Get("/users", userHandler.ListUsers)
+			private.Get("/users/{userID}", userHandler.GetUser)
 			private.Post("/users", userHandler.CreateUser)
 
 			// Posts resources
