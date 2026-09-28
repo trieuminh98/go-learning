@@ -46,7 +46,9 @@ func toUserResponse(u core.User) UserResponse {
 //	@Description	Retrieve a list of all registered users
 //	@Tags			users
 //	@Produce		json
-//	@Success		200	{array}		UserResponse
+//	@Security		BearerAuth
+//	@Success		200	{object}	UsersEnvelope
+//	@Failure		401	{object}	ErrorResponse
 //	@Failure		500	{object}	ErrorResponse
 //	@Router			/users [get]
 func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
@@ -70,9 +72,11 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 //	@Tags			users
 //	@Accept			json
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			payload	body		CreateUserRequest	true	"User creation payload"
-//	@Success		201		{object}	UserResponse
+//	@Success		201		{object}	UserEnvelope
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
 //	@Failure		409		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/users [post]
@@ -104,9 +108,11 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 //	@Description	Retrieve profile of a user by their ID
 //	@Tags			users
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			userID	path		int	true	"User ID"
-//	@Success		200		{object}	UserResponse
+//	@Success		200		{object}	UserEnvelope
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/users/{userID} [get]
@@ -151,9 +157,11 @@ func resolveActorID(r *http.Request) (int64, error) {
 //	@Summary		Follow user
 //	@Description	Establish a follow relationship with target user
 //	@Tags			users
+//	@Security		BearerAuth
 //	@Param			userID	path	int	true	"Target User ID to follow"
 //	@Success		204		"No Content"
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		409		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
@@ -184,9 +192,11 @@ func (h *UserHandler) Follow(w http.ResponseWriter, r *http.Request) {
 //	@Summary		Unfollow user
 //	@Description	Remove an existing follow relationship with target user
 //	@Tags			users
+//	@Security		BearerAuth
 //	@Param			userID	path	int	true	"Target User ID to unfollow"
 //	@Success		204		"No Content"
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/users/{userID}/unfollow [put]

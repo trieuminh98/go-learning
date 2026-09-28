@@ -183,8 +183,9 @@ func NewPostHandler(service *logic.PostService, validator *validator.Validate) *
 //	@Tags			posts
 //	@Accept			json
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			payload	body		CreatePostRequest	true	"Post creation payload"
-//	@Success		201		{object}	PostResponse
+//	@Success		201		{object}	PostEnvelope
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
@@ -230,7 +231,9 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 //	@Description	Retrieve a list of all posts ordered by ID ascending
 //	@Tags			posts
 //	@Produce		json
-//	@Success		200	{array}		PostResponse
+//	@Security		BearerAuth
+//	@Success		200	{object}	PostsEnvelope
+//	@Failure		401	{object}	ErrorResponse
 //	@Failure		500	{object}	ErrorResponse
 //	@Router			/posts [get]
 func (h *PostHandler) ListPosts(w http.ResponseWriter, r *http.Request) {
@@ -253,9 +256,11 @@ func (h *PostHandler) ListPosts(w http.ResponseWriter, r *http.Request) {
 //	@Description	Retrieve details of a specific post including comments and author info
 //	@Tags			posts
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			postID	path		int	true	"Post ID"
-//	@Success		200		{object}	PostDetailResponse
+//	@Success		200		{object}	PostDetailEnvelope
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/posts/{postID} [get]
@@ -304,10 +309,12 @@ func (h *PostHandler) PostContextMiddleware(next http.Handler) http.Handler {
 //	@Tags			posts
 //	@Accept			json
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			postID	path		int					true	"Post ID"
 //	@Param			payload	body		UpdatePostRequest	true	"Post update payload"
-//	@Success		200		{object}	PostResponse
+//	@Success		200		{object}	PostEnvelope
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		409		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
@@ -357,9 +364,11 @@ func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 //	@Summary		Delete post
 //	@Description	Delete an existing post by its ID
 //	@Tags			posts
+//	@Security		BearerAuth
 //	@Param			postID	path	int	true	"Post ID"
 //	@Success		204		"No Content"
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/posts/{postID} [delete]

@@ -24,12 +24,14 @@ func NewFeedHandler(service *logic.FeedService) *FeedHandler {
 //	@Description	Retrieve chronological post feed from followed users with optional tag and search filtering and offset pagination
 //	@Tags			feed
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			page		query		int		false	"Page number (default 1)"							default(1)	minimum(1)
 //	@Param			page_size	query		int		false	"Number of posts per page (default 20, max 100)"	default(20)	minimum(1)	maximum(100)
 //	@Param			tag			query		string	false	"Filter posts by tag"
 //	@Param			search		query		string	false	"Search in title or content"
-//	@Success		200			{array}		PostResponse
+//	@Success		200			{object}	PostsEnvelope
 //	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
 //	@Failure		500			{object}	ErrorResponse
 //	@Router			/feed [get]
 func (h *FeedHandler) GetFeed(w http.ResponseWriter, r *http.Request) {

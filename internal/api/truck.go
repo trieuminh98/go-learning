@@ -48,7 +48,9 @@ func toTruckResponse(t core.Truck) TruckResponse {
 //	@Description	Retrieve a list of all trucks
 //	@Tags			trucks
 //	@Produce		json
-//	@Success		200	{array}		TruckResponse
+//	@Security		BearerAuth
+//	@Success		200	{object}	TrucksEnvelope
+//	@Failure		401	{object}	ErrorResponse
 //	@Failure		500	{object}	ErrorResponse
 //	@Router			/trucks [get]
 func (h *TruckHandler) ListTrucks(w http.ResponseWriter, r *http.Request) {
@@ -71,9 +73,11 @@ func (h *TruckHandler) ListTrucks(w http.ResponseWriter, r *http.Request) {
 //	@Description	Retrieve details of a truck by its ID
 //	@Tags			trucks
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			id	path		string	true	"Truck ID"
-//	@Success		200	{object}	TruckResponse
+//	@Success		200	{object}	TruckEnvelope
 //	@Failure		400	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
 //	@Failure		404	{object}	ErrorResponse
 //	@Failure		500	{object}	ErrorResponse
 //	@Router			/trucks/{id} [get]
@@ -103,9 +107,11 @@ func (h *TruckHandler) GetTruck(w http.ResponseWriter, r *http.Request) {
 //	@Tags			trucks
 //	@Accept			json
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			payload	body		CreateTruckRequest	true	"Truck creation payload"
-//	@Success		201		{object}	TruckResponse
+//	@Success		201		{object}	TruckEnvelope
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
 //	@Failure		409		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/trucks [post]

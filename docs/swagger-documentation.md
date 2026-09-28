@@ -6,6 +6,8 @@ This document details the architectural principles, mental models, developer wor
 
 ## 1. Core Mental Models
 
+### 1.1. Contract Generation & Single Source of Truth
+
 > **Mental core ngắn nhất**:
 >
 > *Docs không nên là một bản copy thủ công của API; docs nên được generate từ contract.*
@@ -20,8 +22,7 @@ generated OpenAPI
 Swagger UI
 ```
 
-### 1.1. Two Supporting Mental Models
-
+#### Hai ý phụ:
 1. **`Generated docs ≠ source of truth`**:
    Các file trong thư mục `docs/` (`docs.go`, `swagger.json`, `swagger.yaml`) là **disposable artifacts** (tập tin phát sinh tạm thời, có thể xóa và tái tạo bất cứ lúc nào). Tuyệt đối không chỉnh sửa thủ công các file này. Source of truth duy nhất nằm ở Go handlers, annotations và struct DTOs tại tầng API.
 
@@ -34,7 +35,42 @@ Swagger UI
 
 ---
 
-### 1.2. Code-First vs Spec-First
+### 1.2. Public Contract vs Internal Model (Fidelity & Envelope Parity)
+
+> **Mental core của endpoint documentation**:
+>
+> *Document the public contract, not the internal model.*
+
+```text
+Internal model
+    ↓
+API mapping
+    ↓
+Public request / response
+    ↓
+Swagger docs
+```
+
+#### Hai ý phụ cần nhớ:
+1. **`Swagger = contract representation`**, không phải **`Swagger = dump Go structs`**:
+   Swagger không phải là công cụ phơi bày nguyên trạng các struct nội bộ của cơ sở dữ liệu hay domain core (`core.Post`, `core.User`). Nó là đại diện của **Public API Contract** — chỉ phản ánh những trường dữ liệu mà client được phép gửi lên và nhận về.
+
+2. **`Runtime response must match documented response`**:
+   Payload thực tế trả về qua HTTP dây mạng bắt buộc phải trùng khớp 1:1 với schema mô tả trên tài liệu.
+   Nếu hai bên sai lệch:
+   ```text
+   runtime ≠ docs
+   → contract drift
+   ```
+   Ví dụ: API bọc payload trong `{"data": [...]}` thông qua `jsonResponse()`, nhưng Swagger lại ghi chú `{array} PostResponse` (mảng trần). Sự sai lệch này khiến client SDK parser bị đổ vỡ khi đọc dữ liệu runtime. Giải pháp kiến trúc là sử dụng các **Response Envelopes** (`PostsEnvelope`, `UserEnvelope`, etc.) tại ranh giới API để OpenAPI schema thể hiện chính xác thuộc tính `data`.
+
+> **Câu ngắn nhất**:
+>
+> *Docs should describe what clients actually send and receive.*
+
+---
+
+### 1.3. Code-First vs Spec-First
 
 | Tiếp cận | Luồng thực thi | Đặc điểm trong dự án hiện tại |
 | :--- | :--- | :--- |
@@ -64,6 +100,7 @@ Toàn bộ mối bận tâm về Swagger và tài liệu giao tiếp được c�
 │ internal/api                                                          │
 │ ─► Handler annotations: @Summary, @Tags, @Param, @Success, @Failure   │
 │ ─► Reuses existing DTOs: PostResponse, UserResponse, CreatePostRequest│
+│ ─► Typed Public Envelopes: PostsEnvelope, PostEnvelope, UserEnvelope  │
 │ ─► Router: Mounts public route GET /v1/swagger/* (httpSwagger)        │
 └───────────────────────────────────────────────────────────────────────┘
                                           │
@@ -83,8 +120,8 @@ Toàn bộ mối bận tâm về Swagger và tài liệu giao tiếp được c�
 | Tầng / Thành phần | Vị trí tập tin | Trách nhiệm kiến trúc |
 | :--- | :--- | :--- |
 | **General Info & Entrypoint** | [`cmd/api/main.go`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/cmd/api/main.go) | Định nghĩa metadata toàn cục của API và security definition. Thiết lập `docs.SwaggerInfo.Host` động từ môi trường (`API_HOST` / `SERVER_ADDR`) thay vì hardcode localhost. |
-| **Handler Annotations & DTOs** | [`internal/api/*.go`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api) | Khai báo chú thích Swagger mô tả hành vi của từng route. Tái sử dụng 100% các DTOs nghiệp vụ hiện có (`PostResponse`, `CreatePostRequest`, `UserResponse`, `HealthResponse`, `ErrorResponse`). Không tạo duplicate models. |
-| **Route Registration** | [`internal/api/router.go`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/router.go) | Mount Swagger UI handler (`httpSwagger.WrapHandler`) tại `GET /v1/swagger/*` trong nhóm **Public route group**, đảm bảo lập trình viên và người dùng truy cập được tài liệu mà không bị chặn bởi AuthMiddleware. |
+| **Handler Annotations & DTOs** | [`internal/api/*.go`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api) | Khai báo chú thích Swagger mô tả hành vi của từng route. Tái sử dụng các DTOs nghiệp vụ và khai báo Typed Response Envelopes (`PostEnvelope`, `PostsEnvelope`, `UserEnvelope`, `UsersEnvelope`, `TruckEnvelope`, `TrucksEnvelope`, `ErrorResponse`). Không rò rỉ domain model. |
+| **Route Registration** | [`internal/api/router.go`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/router.go) | Mount Swagger UI handler (`httpSwagger.WrapHandler`) tại `GET /v1/swagger/*` trong nhóm **Public route group** (không cần auth), phân định rõ với **Private route group** (`gateway.AuthMiddleware`). |
 | **Generated Artifacts** | `docs/docs.go`<br>`docs/swagger.json`<br>`docs/swagger.yaml` | Kết quả được sinh tự động bởi `swag CLI`. Được xem là disposable artifacts — không bao giờ chỉnh sửa trực tiếp bằng tay. |
 | **Domain & Storage** | [`internal/core`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/core)<br>[`internal/logic`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/logic)<br>[`internal/repository`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/repository) | **Vùng cấm tuyệt đối**: Không chứa bất kỳ chú thích `@`, cấu trúc hay package nào liên quan đến Swagger. |
 
@@ -128,41 +165,45 @@ gen-docs:
 
 ---
 
-## 4. Endpoints Documented
+## 4. Endpoints Documented & Envelopes
 
-Tất cả các tài nguyên và hành vi đã triển khai trong hệ thống đều được tài liệu hóa chi tiết:
+Tất cả các tài nguyên và hành vi đã triển khai trong hệ thống đều được tài liệu hóa chi tiết với envelope responses và security requirements tương ứng:
 
-1. **System**:
+1. **System** (Public — No Auth):
    - `GET /v1/health`: Kiểm tra trạng thái khả dụng, trả về [`HealthResponse`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/health.go#L8-L12).
-2. **Posts**:
-   - `GET /v1/posts`: Danh sách tất cả bài viết ([`PostResponse`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/post.go#L68-L77)).
-   - `POST /v1/posts`: Tạo bài viết mới nhận [`CreatePostRequest`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/post.go#L52-L56).
-   - `GET /v1/posts/{postID}`: Chi tiết bài viết kèm bình luận và tác giả ([`PostDetailResponse`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/post.go#L119-L124)).
-   - `PATCH /v1/posts/{postID}`: Cập nhật từng phần bài viết với optimistic concurrency control ([`UpdatePostRequest`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/post.go#L61-L65)).
-   - `DELETE /v1/posts/{postID}`: Xóa bài viết (trả về 204 No Content).
-3. **Users & Relationships**:
-   - `GET /v1/users`: Danh sách người dùng ([`UserResponse`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/user.go#L29-L33)).
-   - `POST /v1/users`: Đăng ký người dùng mới ([`CreateUserRequest`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/user.go#L23-L26)).
-   - `GET /v1/users/{userID}`: Xem hồ sơ người dùng.
-   - `PUT /v1/users/{userID}/follow`: Thiết lập quan hệ theo dõi (204 No Content).
-   - `PUT /v1/users/{userID}/unfollow`: Xóa quan hệ theo dõi (204 No Content).
-4. **Feed**:
-   - `GET /v1/feed`: Bảng tin người dùng có phân trang offset (`page`, `page_size`) và lọc đa tiêu chí tùy chọn (`tag`, `search`).
-5. **Trucks**:
-   - `GET /v1/trucks`, `GET /v1/trucks/{id}`, `POST /v1/trucks`: Các thao tác kiểm thử nghiệp vụ tải trọng.
+2. **Posts** (Private — `@Security BearerAuth`):
+   - `GET /v1/posts`: Danh sách tất cả bài viết (`200` [`PostsEnvelope`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/json.go)).
+   - `POST /v1/posts`: Tạo bài viết mới nhận [`CreatePostRequest`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/post.go) (`201` [`PostEnvelope`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/json.go)).
+   - `GET /v1/posts/{postID}`: Chi tiết bài viết kèm bình luận và tác giả (`200` [`PostDetailEnvelope`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/json.go)).
+   - `PATCH /v1/posts/{postID}`: Cập nhật từng phần bài viết với optimistic concurrency control (`200` [`PostEnvelope`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/json.go)).
+   - `DELETE /v1/posts/{postID}`: Xóa bài viết (`204` No Content).
+3. **Users & Relationships** (Private — `@Security BearerAuth`):
+   - `GET /v1/users`: Danh sách người dùng (`200` [`UsersEnvelope`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/json.go)).
+   - `POST /v1/users`: Đăng ký người dùng mới (`201` [`UserEnvelope`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/json.go)).
+   - `GET /v1/users/{userID}`: Xem hồ sơ người dùng (`200` [`UserEnvelope`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/json.go)).
+   - `PUT /v1/users/{userID}/follow`: Thiết lập quan hệ theo dõi (`204` No Content).
+   - `PUT /v1/users/{userID}/unfollow`: Xóa quan hệ theo dõi (`204` No Content).
+4. **Feed** (Private — `@Security BearerAuth`):
+   - `GET /v1/feed`: Bảng tin người dùng có phân trang offset (`page`, `page_size`) và lọc đa tiêu chí tùy chọn (`tag`, `search`), trả về `200` [`PostsEnvelope`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/json.go).
+5. **Trucks** (Private — `@Security BearerAuth`):
+   - `GET /v1/trucks`: Danh sách xe tải (`200` [`TrucksEnvelope`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/json.go)).
+   - `GET /v1/trucks/{id}`: Chi tiết xe tải (`200` [`TruckEnvelope`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/json.go)).
+   - `POST /v1/trucks`: Tạo xe tải mới (`201` [`TruckEnvelope`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/internal/api/json.go)).
 
 ---
 
-## 5. Security & Authentication Placeholder
+## 5. Security & Authentication Parity
 
-Trong metadata chung tại [`cmd/api/main.go`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/cmd/api/main.go), sơ đồ xác thực Bearer Token được khai báo trước:
+Trong metadata chung tại [`cmd/api/main.go`](file:///Users/minhtintrieu/Documents/documents/Personals/go-learning/cmd/api/main.go), sơ đồ xác thực Bearer Token được khai báo:
 
 ```go
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Type "Bearer" followed by a space and JWT token.
+// @description Type "Bearer" followed by a space and token.
 ```
 
-- **Nguyên tắc hợp đồng trung thực**: Mặc dù schema đã được khai báo trên giao diện Swagger UI để chuẩn bị cho giai đoạn xác thực tiếp theo, các endpoint v1 hiện tại **chưa** gắn thẻ `@Security BearerAuth` khi AuthMiddleware chưa thực sự ép buộc JWT token trên môi trường production.
-- Ranh giới này đảm bảo tài liệu phản ánh chính xác 100% hành vi runtime hiện tại của hệ thống.
+- **Ranh giới bảo mật đối chiếu 1:1**:
+  - Nhóm **Public** (`/health`, `/v1/swagger/*`): Hoàn toàn không gắn `@Security BearerAuth`, cho phép gọi trực tiếp mà không cần header Authorization.
+  - Nhóm **Private** (`/posts`, `/users`, `/feed`, `/trucks`): Được bảo vệ runtime bởi `gateway.AuthMiddleware`. Do đó, trên Swagger documentation, toàn bộ các endpoints này đều được gắn `@Security BearerAuth` và mô tả phản hồi `401 Unauthorized` (`ErrorResponse`).
+- Người dùng trên Swagger UI có thể bấm nút **Authorize** ở góc phải màn hình, nhập token hợp lệ (ví dụ: `Bearer secret-token`) để thực hiện các request trực tiếp đến các endpoint được bảo vệ.

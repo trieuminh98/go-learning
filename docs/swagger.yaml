@@ -70,6 +70,11 @@ definitions:
       version:
         type: string
     type: object
+  internal_api.PostDetailEnvelope:
+    properties:
+      data:
+        $ref: '#/definitions/internal_api.PostDetailResponse'
+    type: object
   internal_api.PostDetailResponse:
     properties:
       comments:
@@ -95,6 +100,11 @@ definitions:
       version:
         type: integer
     type: object
+  internal_api.PostEnvelope:
+    properties:
+      data:
+        $ref: '#/definitions/internal_api.PostResponse'
+    type: object
   internal_api.PostResponse:
     properties:
       content:
@@ -116,6 +126,18 @@ definitions:
       version:
         type: integer
     type: object
+  internal_api.PostsEnvelope:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_api.PostResponse'
+        type: array
+    type: object
+  internal_api.TruckEnvelope:
+    properties:
+      data:
+        $ref: '#/definitions/internal_api.TruckResponse'
+    type: object
   internal_api.TruckResponse:
     properties:
       capacity:
@@ -124,6 +146,13 @@ definitions:
         type: integer
       id:
         type: string
+    type: object
+  internal_api.TrucksEnvelope:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_api.TruckResponse'
+        type: array
     type: object
   internal_api.UpdatePostRequest:
     properties:
@@ -138,6 +167,11 @@ definitions:
         maxLength: 100
         type: string
     type: object
+  internal_api.UserEnvelope:
+    properties:
+      data:
+        $ref: '#/definitions/internal_api.UserResponse'
+    type: object
   internal_api.UserResponse:
     properties:
       first_name:
@@ -146,6 +180,13 @@ definitions:
         type: string
       last_name:
         type: string
+    type: object
+  internal_api.UsersEnvelope:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_api.UserResponse'
+        type: array
     type: object
 info:
   contact:
@@ -191,17 +232,21 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/internal_api.PostResponse'
-            type: array
+            $ref: '#/definitions/internal_api.PostsEnvelope'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get user feed
       tags:
       - feed
@@ -227,13 +272,17 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/internal_api.PostResponse'
-            type: array
+            $ref: '#/definitions/internal_api.PostsEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: List posts
       tags:
       - posts
@@ -254,7 +303,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/internal_api.PostResponse'
+            $ref: '#/definitions/internal_api.PostEnvelope'
         "400":
           description: Bad Request
           schema:
@@ -267,6 +316,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Create post
       tags:
       - posts
@@ -286,6 +337,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -294,6 +349,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Delete post
       tags:
       - posts
@@ -312,9 +369,13 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api.PostDetailResponse'
+            $ref: '#/definitions/internal_api.PostDetailEnvelope'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -325,6 +386,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get post
       tags:
       - posts
@@ -351,9 +414,13 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api.PostResponse'
+            $ref: '#/definitions/internal_api.PostEnvelope'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -368,6 +435,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Update post
       tags:
       - posts
@@ -380,13 +449,17 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/internal_api.TruckResponse'
-            type: array
+            $ref: '#/definitions/internal_api.TrucksEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: List trucks
       tags:
       - trucks
@@ -407,9 +480,13 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/internal_api.TruckResponse'
+            $ref: '#/definitions/internal_api.TruckEnvelope'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
@@ -420,6 +497,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Create truck
       tags:
       - trucks
@@ -438,9 +517,13 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api.TruckResponse'
+            $ref: '#/definitions/internal_api.TruckEnvelope'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -451,6 +534,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get truck
       tags:
       - trucks
@@ -463,13 +548,17 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/internal_api.UserResponse'
-            type: array
+            $ref: '#/definitions/internal_api.UsersEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: List users
       tags:
       - users
@@ -490,9 +579,13 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/internal_api.UserResponse'
+            $ref: '#/definitions/internal_api.UserEnvelope'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
@@ -503,6 +596,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Create user
       tags:
       - users
@@ -521,9 +616,13 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api.UserResponse'
+            $ref: '#/definitions/internal_api.UserEnvelope'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -534,6 +633,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get user
       tags:
       - users
@@ -553,6 +654,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -565,6 +670,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Follow user
       tags:
       - users
@@ -584,6 +691,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -592,6 +703,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Unfollow user
       tags:
       - users

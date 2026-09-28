@@ -31,6 +31,41 @@ type envelope struct {
 	Data any `json:"data"`
 }
 
+// PostEnvelope defines the public JSON envelope for a single post response.
+type PostEnvelope struct {
+	Data PostResponse `json:"data"`
+}
+
+// PostsEnvelope defines the public JSON envelope for a list or feed of post responses.
+type PostsEnvelope struct {
+	Data []PostResponse `json:"data"`
+}
+
+// PostDetailEnvelope defines the public JSON envelope for a post detail response with comments.
+type PostDetailEnvelope struct {
+	Data PostDetailResponse `json:"data"`
+}
+
+// UserEnvelope defines the public JSON envelope for a single user response.
+type UserEnvelope struct {
+	Data UserResponse `json:"data"`
+}
+
+// UsersEnvelope defines the public JSON envelope for a list of user responses.
+type UsersEnvelope struct {
+	Data []UserResponse `json:"data"`
+}
+
+// TruckEnvelope defines the public JSON envelope for a single truck response.
+type TruckEnvelope struct {
+	Data TruckResponse `json:"data"`
+}
+
+// TrucksEnvelope defines the public JSON envelope for a list of truck responses.
+type TrucksEnvelope struct {
+	Data []TruckResponse `json:"data"`
+}
+
 // jsonResponse wraps data in the standardized {"data": ...} envelope and sends it
 // with the specified HTTP status code.
 func jsonResponse(w http.ResponseWriter, status int, data any) error {

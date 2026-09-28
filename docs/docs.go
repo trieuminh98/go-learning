@@ -24,6 +24,11 @@ const docTemplate = `{
     "paths": {
         "/feed": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieve chronological post feed from followed users with optional tag and search filtering and offset pagination",
                 "produces": [
                     "application/json"
@@ -67,14 +72,17 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_api.PostResponse"
-                            }
+                            "$ref": "#/definitions/internal_api.PostsEnvelope"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -110,6 +118,11 @@ const docTemplate = `{
         },
         "/posts": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieve a list of all posts ordered by ID ascending",
                 "produces": [
                     "application/json"
@@ -122,10 +135,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_api.PostResponse"
-                            }
+                            "$ref": "#/definitions/internal_api.PostsEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
@@ -137,6 +153,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a new post authored by the authenticated actor",
                 "consumes": [
                     "application/json"
@@ -163,7 +184,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.PostResponse"
+                            "$ref": "#/definitions/internal_api.PostEnvelope"
                         }
                     },
                     "400": {
@@ -189,6 +210,11 @@ const docTemplate = `{
         },
         "/posts/{postID}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieve details of a specific post including comments and author info",
                 "produces": [
                     "application/json"
@@ -210,11 +236,17 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.PostDetailResponse"
+                            "$ref": "#/definitions/internal_api.PostDetailEnvelope"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -234,6 +266,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Delete an existing post by its ID",
                 "tags": [
                     "posts"
@@ -258,6 +295,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
                         "schema": {
@@ -273,6 +316,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Partially update post title, content, or tags with optimistic locking check",
                 "consumes": [
                     "application/json"
@@ -306,11 +354,17 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.PostResponse"
+                            "$ref": "#/definitions/internal_api.PostEnvelope"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -338,6 +392,11 @@ const docTemplate = `{
         },
         "/trucks": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieve a list of all trucks",
                 "produces": [
                     "application/json"
@@ -350,10 +409,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_api.TruckResponse"
-                            }
+                            "$ref": "#/definitions/internal_api.TrucksEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
@@ -365,6 +427,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a new truck record",
                 "consumes": [
                     "application/json"
@@ -391,11 +458,17 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.TruckResponse"
+                            "$ref": "#/definitions/internal_api.TruckEnvelope"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -417,6 +490,11 @@ const docTemplate = `{
         },
         "/trucks/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieve details of a truck by its ID",
                 "produces": [
                     "application/json"
@@ -438,11 +516,17 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.TruckResponse"
+                            "$ref": "#/definitions/internal_api.TruckEnvelope"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -464,6 +548,11 @@ const docTemplate = `{
         },
         "/users": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieve a list of all registered users",
                 "produces": [
                     "application/json"
@@ -476,10 +565,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_api.UserResponse"
-                            }
+                            "$ref": "#/definitions/internal_api.UsersEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
@@ -491,6 +583,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Register a new user",
                 "consumes": [
                     "application/json"
@@ -517,11 +614,17 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.UserResponse"
+                            "$ref": "#/definitions/internal_api.UserEnvelope"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -543,6 +646,11 @@ const docTemplate = `{
         },
         "/users/{userID}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieve profile of a user by their ID",
                 "produces": [
                     "application/json"
@@ -564,11 +672,17 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.UserResponse"
+                            "$ref": "#/definitions/internal_api.UserEnvelope"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -590,6 +704,11 @@ const docTemplate = `{
         },
         "/users/{userID}/follow": {
             "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Establish a follow relationship with target user",
                 "tags": [
                     "users"
@@ -610,6 +729,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -637,6 +762,11 @@ const docTemplate = `{
         },
         "/users/{userID}/unfollow": {
             "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Remove an existing follow relationship with target user",
                 "tags": [
                     "users"
@@ -657,6 +787,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -785,6 +921,14 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_api.PostDetailEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_api.PostDetailResponse"
+                }
+            }
+        },
         "internal_api.PostDetailResponse": {
             "type": "object",
             "properties": {
@@ -823,6 +967,14 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_api.PostEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_api.PostResponse"
+                }
+            }
+        },
         "internal_api.PostResponse": {
             "type": "object",
             "properties": {
@@ -855,6 +1007,25 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_api.PostsEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.PostResponse"
+                    }
+                }
+            }
+        },
+        "internal_api.TruckEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_api.TruckResponse"
+                }
+            }
+        },
         "internal_api.TruckResponse": {
             "type": "object",
             "properties": {
@@ -866,6 +1037,17 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_api.TrucksEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.TruckResponse"
+                    }
                 }
             }
         },
@@ -888,6 +1070,14 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_api.UserEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_api.UserResponse"
+                }
+            }
+        },
         "internal_api.UserResponse": {
             "type": "object",
             "properties": {
@@ -899,6 +1089,17 @@ const docTemplate = `{
                 },
                 "last_name": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_api.UsersEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.UserResponse"
+                    }
                 }
             }
         }
