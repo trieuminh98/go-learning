@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	"go-learning/internal/gateway"
 	"go-learning/internal/logic"
@@ -44,6 +45,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		// Public route group: no authentication required
 		v1.Group(func(public chi.Router) {
 			public.Get("/health", HealthHandler)
+			public.Get("/swagger/*", httpSwagger.WrapHandler)
 			public.Get("/debug/panic", func(w http.ResponseWriter, r *http.Request) {
 				panic("deliberate test panic for recovery middleware verification")
 			})

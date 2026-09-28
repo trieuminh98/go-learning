@@ -43,6 +43,14 @@ func toTruckResponse(t core.Truck) TruckResponse {
 }
 
 // ListTrucks lists all trucks.
+//
+//	@Summary		List trucks
+//	@Description	Retrieve a list of all trucks
+//	@Tags			trucks
+//	@Produce		json
+//	@Success		200	{array}		TruckResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Router			/trucks [get]
 func (h *TruckHandler) ListTrucks(w http.ResponseWriter, r *http.Request) {
 	trucks, err := h.service.ListTrucks(r.Context())
 	if err != nil {
@@ -58,6 +66,17 @@ func (h *TruckHandler) ListTrucks(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetTruck translates HTTP requests to TruckService calls.
+//
+//	@Summary		Get truck
+//	@Description	Retrieve details of a truck by its ID
+//	@Tags			trucks
+//	@Produce		json
+//	@Param			id	path		string	true	"Truck ID"
+//	@Success		200	{object}	TruckResponse
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Router			/trucks/{id} [get]
 func (h *TruckHandler) GetTruck(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -78,6 +97,18 @@ func (h *TruckHandler) GetTruck(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateTruck parses payload and forwards to TruckService.
+//
+//	@Summary		Create truck
+//	@Description	Create a new truck record
+//	@Tags			trucks
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		CreateTruckRequest	true	"Truck creation payload"
+//	@Success		201		{object}	TruckResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		409		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/trucks [post]
 func (h *TruckHandler) CreateTruck(w http.ResponseWriter, r *http.Request) {
 	var input CreateTruckRequest
 	if err := readJSON(w, r, &input); err != nil {

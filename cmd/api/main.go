@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
+	"go-learning/docs"
 	"go-learning/internal/api"
 	"go-learning/internal/db"
 	generated "go-learning/internal/db/generated"
@@ -76,7 +77,6 @@ func (app *Application) routes() http.Handler {
 	})
 }
 
-
 // run configures and starts the HTTP server.
 func (app *Application) run() error {
 	srv := &http.Server{
@@ -96,6 +96,22 @@ func (app *Application) run() error {
 	return nil
 }
 
+// @title						Go Learning API
+// @version					1.0
+// @description				Go backend learning project demonstrating clean architecture, RESTful patterns, database indexing, and feed generation.
+//
+// @contact.name				API Support
+// @contact.url				https://github.com/trieuminh98/go-learning
+//
+// @license.name				MIT
+// @license.url				https://opensource.org/licenses/MIT
+//
+// @BasePath					/v1
+//
+// @securityDefinitions.apikey	BearerAuth
+// @in							header
+// @name						Authorization
+// @description				Type "Bearer" followed by a space and JWT token.
 func main() {
 	// 1. Load runtime configuration
 	cfg := Config{
@@ -110,6 +126,13 @@ func main() {
 			MaxIdleTime: time.Duration(env.GetInt("DB_MAX_CONN_IDLE_TIME_SECONDS", 900)) * time.Second,
 			MaxLifetime: time.Duration(env.GetInt("DB_MAX_CONN_LIFETIME_SECONDS", 3600)) * time.Second,
 		},
+	}
+
+	// Configure Swagger host dynamically from runtime environment
+	if apiHost := env.GetString("API_HOST", ""); apiHost != "" {
+		docs.SwaggerInfo.Host = apiHost
+	} else if cfg.Addr != "" && cfg.Addr[0] == ':' {
+		docs.SwaggerInfo.Host = "localhost" + cfg.Addr
 	}
 
 	// 2. Initialize PostgreSQL connection pool with bounded startup timeout

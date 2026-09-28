@@ -41,6 +41,14 @@ func toUserResponse(u core.User) UserResponse {
 }
 
 // ListUsers returns all users as a JSON array.
+//
+//	@Summary		List users
+//	@Description	Retrieve a list of all registered users
+//	@Tags			users
+//	@Produce		json
+//	@Success		200	{array}		UserResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Router			/users [get]
 func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.service.ListUsers(r.Context())
 	if err != nil {
@@ -56,6 +64,18 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateUser handles user creation by delegating to UserService.
+//
+//	@Summary		Create user
+//	@Description	Register a new user
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		CreateUserRequest	true	"User creation payload"
+//	@Success		201		{object}	UserResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		409		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/users [post]
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var input CreateUserRequest
 
@@ -79,6 +99,17 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetUser handles GET /v1/users/{userID}.
+//
+//	@Summary		Get user
+//	@Description	Retrieve profile of a user by their ID
+//	@Tags			users
+//	@Produce		json
+//	@Param			userID	path		int	true	"User ID"
+//	@Success		200		{object}	UserResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/users/{userID} [get]
 func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	userID, err := readIDParam(r, "userID")
 	if err != nil {
@@ -116,6 +147,17 @@ func resolveActorID(r *http.Request) (int64, error) {
 }
 
 // Follow handles PUT /v1/users/{userID}/follow.
+//
+//	@Summary		Follow user
+//	@Description	Establish a follow relationship with target user
+//	@Tags			users
+//	@Param			userID	path	int	true	"Target User ID to follow"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		409		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/users/{userID}/follow [put]
 func (h *UserHandler) Follow(w http.ResponseWriter, r *http.Request) {
 	targetID, err := readIDParam(r, "userID")
 	if err != nil {
@@ -138,6 +180,16 @@ func (h *UserHandler) Follow(w http.ResponseWriter, r *http.Request) {
 }
 
 // Unfollow handles PUT /v1/users/{userID}/unfollow.
+//
+//	@Summary		Unfollow user
+//	@Description	Remove an existing follow relationship with target user
+//	@Tags			users
+//	@Param			userID	path	int	true	"Target User ID to unfollow"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/users/{userID}/unfollow [put]
 func (h *UserHandler) Unfollow(w http.ResponseWriter, r *http.Request) {
 	targetID, err := readIDParam(r, "userID")
 	if err != nil {

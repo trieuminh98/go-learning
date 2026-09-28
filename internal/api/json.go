@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-
 // DefaultMaxBodyBytes limits incoming JSON payloads to 1MB.
 const DefaultMaxBodyBytes int64 = 1048576
 

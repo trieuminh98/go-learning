@@ -9,14 +9,16 @@ import (
 	"go-learning/internal/core"
 )
 
-// errorResponse defines the standardized JSON error envelope: {"error": "..."}.
-type errorResponse struct {
+// ErrorResponse defines the standardized JSON error envelope: {"error": "..."}.
+type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
+type errorResponse = ErrorResponse
+
 // writeJSONError serializes an error message using the standard error envelope.
 func writeJSONError(w http.ResponseWriter, status int, message string) {
-	if err := writeJSON(w, status, errorResponse{Error: message}); err != nil {
+	if err := writeJSON(w, status, ErrorResponse{Error: message}); err != nil {
 		log.Printf("failed to write json error response: %v", err)
 	}
 }

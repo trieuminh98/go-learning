@@ -177,6 +177,18 @@ func NewPostHandler(service *logic.PostService, validator *validator.Validate) *
 }
 
 // CreatePost handles POST /v1/posts.
+//
+//	@Summary		Create post
+//	@Description	Create a new post authored by the authenticated actor
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		CreatePostRequest	true	"Post creation payload"
+//	@Success		201		{object}	PostResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/posts [post]
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 	var input CreatePostRequest
 
@@ -213,6 +225,14 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListPosts handles GET /v1/posts.
+//
+//	@Summary		List posts
+//	@Description	Retrieve a list of all posts ordered by ID ascending
+//	@Tags			posts
+//	@Produce		json
+//	@Success		200	{array}		PostResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Router			/posts [get]
 func (h *PostHandler) ListPosts(w http.ResponseWriter, r *http.Request) {
 	posts, err := h.service.ListPosts(r.Context())
 	if err != nil {
@@ -228,6 +248,17 @@ func (h *PostHandler) ListPosts(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetPost handles GET /v1/posts/{postID}.
+//
+//	@Summary		Get post
+//	@Description	Retrieve details of a specific post including comments and author info
+//	@Tags			posts
+//	@Produce		json
+//	@Param			postID	path		int	true	"Post ID"
+//	@Success		200		{object}	PostDetailResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/posts/{postID} [get]
 func (h *PostHandler) GetPost(w http.ResponseWriter, r *http.Request) {
 	postID, err := readIDParam(r, "postID")
 	if err != nil {
@@ -267,6 +298,20 @@ func (h *PostHandler) PostContextMiddleware(next http.Handler) http.Handler {
 
 // UpdatePost handles PATCH /v1/posts/{postID}.
 // Reads the already-resolved post from context and applies only present fields.
+//
+//	@Summary		Update post
+//	@Description	Partially update post title, content, or tags with optimistic locking check
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			postID	path		int					true	"Post ID"
+//	@Param			payload	body		UpdatePostRequest	true	"Post update payload"
+//	@Success		200		{object}	PostResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		409		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/posts/{postID} [patch]
 func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 	post, ok := PostFromContext(r.Context())
 	if !ok {
@@ -308,6 +353,16 @@ func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 
 // DeletePost handles DELETE /v1/posts/{postID}.
 // Directly deletes the post and checks affected rows without pre-fetching SELECT.
+//
+//	@Summary		Delete post
+//	@Description	Delete an existing post by its ID
+//	@Tags			posts
+//	@Param			postID	path	int	true	"Post ID"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/posts/{postID} [delete]
 func (h *PostHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
 	postID, err := readIDParam(r, "postID")
 	if err != nil {
