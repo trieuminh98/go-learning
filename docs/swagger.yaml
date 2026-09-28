@@ -260,6 +260,29 @@ paths:
       summary: Register user
       tags:
       - authentication
+  /authentication/users/activate/{token}:
+    put:
+      description: Activate an inactive user account using a one-time invitation token
+      parameters:
+      - description: Plaintext activation token
+        in: path
+        name: token
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+      summary: Activate user
+      tags:
+      - authentication
   /feed:
     get:
       description: Retrieve chronological post feed from followed users with optional

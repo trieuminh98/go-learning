@@ -133,7 +133,6 @@ func MapDomainErrorToHTTP(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, core.ErrConflict):
 		conflict(w, r, err.Error())
 
-
 	case errors.Is(err, core.ErrTruckNotFound),
 		errors.Is(err, core.ErrUserNotFound),
 		errors.Is(err, core.ErrInvitationNotFound),

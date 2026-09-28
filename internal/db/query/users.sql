@@ -35,3 +35,8 @@ WHERE id = $1;
 SELECT id, first_name, last_name, email, password_hash, is_active, created_at
 FROM users
 WHERE email = $1;
+
+-- name: ActivateUser :exec
+UPDATE users
+SET is_active = true
+WHERE id = $1;

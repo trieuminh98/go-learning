@@ -14,6 +14,7 @@ type UserRepository interface {
 	Create(ctx context.Context, user core.User) (core.User, error)
 	CreateWithCredentials(ctx context.Context, user core.User) (core.User, error)
 	GetByEmail(ctx context.Context, email string) (core.User, error)
+	Activate(ctx context.Context, id int64) error
 	Delete(ctx context.Context, id int64) error
 }
 

@@ -131,6 +131,26 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (core.Use
 	return core.User{}, core.ErrUserNotFound
 }
 
+// Activate marks an existing user as active.
+func (r *UserRepository) Activate(ctx context.Context, id int64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	idStr := strconv.FormatInt(id, 10)
+	u, ok := r.users[idStr]
+	if !ok {
+		return core.ErrUserNotFound
+	}
+
+	u.IsActive = true
+	r.users[idStr] = u
+	return nil
+}
+
 // Delete removes a user record by ID.
 func (r *UserRepository) Delete(ctx context.Context, id int64) error {
 	if err := ctx.Err(); err != nil {

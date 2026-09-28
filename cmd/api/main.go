@@ -44,7 +44,6 @@ type Config struct {
 	Auth         AuthConfig
 }
 
-
 // Application holds runtime dependencies and application lifecycle methods.
 type Application struct {
 	config       Config
@@ -210,7 +209,6 @@ func main() {
 	truckService := logic.NewTruckService(storage.Trucks)
 	postService := logic.NewPostService(storage.Posts, storage.Comments)
 	feedService := logic.NewFeedService(storage.Feed)
-
 
 	// 6. Initialize shared request validator
 	validate := validator.New(validator.WithRequiredStructEnabled())

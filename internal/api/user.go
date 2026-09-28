@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 
 	"go-learning/internal/core"
@@ -279,4 +280,32 @@ func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = jsonResponse(w, http.StatusCreated, toUserResponse(created))
+}
+
+// ActivateUser handles PUT /v1/authentication/users/activate/{token}.
+//
+//	@Summary		Activate user
+//	@Description	Activate an inactive user account using a one-time invitation token
+//	@Tags			authentication
+//	@Param			token	path	string	true	"Plaintext activation token"
+//	@Success		204		"No Content"
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/authentication/users/activate/{token} [put]
+func (h *UserHandler) ActivateUser(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		token = r.PathValue("token")
+	}
+	if token == "" {
+		MapDomainErrorToHTTP(w, r, core.ErrInvitationNotFound)
+		return
+	}
+
+	if err := h.service.ActivateUser(r.Context(), token); err != nil {
+		MapDomainErrorToHTTP(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

@@ -141,6 +141,11 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (core.Use
 	return res, nil
 }
 
+// Activate updates the user record setting is_active = true.
+func (r *UserRepository) Activate(ctx context.Context, id int64) error {
+	return r.queries.ActivateUser(ctx, id)
+}
+
 // Delete removes a user record by ID. Used for compensation or account removal.
 func (r *UserRepository) Delete(ctx context.Context, id int64) error {
 	return r.queries.DeleteUser(ctx, id)

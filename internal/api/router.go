@@ -56,9 +56,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				panic("deliberate test panic for recovery middleware verification")
 			})
 
-			// Authentication / Registration
+			// Authentication / Registration / Activation
 			public.Route("/authentication", func(auth chi.Router) {
 				auth.Post("/user", userHandler.RegisterUser)
+				auth.Put("/users/activate/{token}", userHandler.ActivateUser)
+				auth.Put("/user/activate/{token}", userHandler.ActivateUser)
 			})
 		})
 

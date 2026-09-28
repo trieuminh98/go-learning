@@ -167,6 +167,41 @@ func (s *UserService) compensateRegistration(ctx context.Context, userIDStr stri
 	return s.repo.Delete(ctx, userID)
 }
 
+// ActivateUser validates the incoming activation token and transitions the associated
+// user account to active status atomically inside a database transaction:
+//  1. Computes the SHA-256 hash of the plain token parameter.
+//  2. Within a single DB transaction:
+//     - Looks up the invitation record by token hash.
+//     - Verifies that the invitation exists and has not expired (expiry > now).
+//     - Sets user is_active = true.
+//     - Deletes the invitation record(s) for the user to consume the one-time capability.
+//  3. If token does not exist or has expired, returns core.ErrInvitationNotFound uniformly.
+func (s *UserService) ActivateUser(ctx context.Context, plainToken string) error {
+	plainToken = strings.TrimSpace(plainToken)
+	if plainToken == "" {
+		return core.ErrInvitationNotFound
+	}
+
+	tokenHash := core.HashToken(plainToken)
+
+	return s.txManager.WithinTransaction(ctx, func(tx TxStorage) error {
+		invitation, err := tx.Invitations.GetByTokenHash(ctx, tokenHash)
+		if err != nil {
+			return err
+		}
+
+		if time.Now().After(invitation.Expiry) {
+			return core.ErrInvitationNotFound
+		}
+
+		if err := tx.Users.Activate(ctx, invitation.UserID); err != nil {
+			return err
+		}
+
+		return tx.Invitations.DeleteByUserID(ctx, invitation.UserID)
+	})
+}
+
 // FollowUser coordinates self-follow validation and delegates relation creation to FollowerRepository.
 func (s *UserService) FollowUser(ctx context.Context, followerID, followedUserID int64) error {
 	if followerID == followedUserID {
