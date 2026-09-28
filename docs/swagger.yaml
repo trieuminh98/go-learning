@@ -133,6 +133,27 @@ definitions:
           $ref: '#/definitions/internal_api.PostResponse'
         type: array
     type: object
+  internal_api.RegisterUserRequest:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      first_name:
+        maxLength: 100
+        type: string
+      last_name:
+        maxLength: 100
+        type: string
+      password:
+        maxLength: 72
+        minLength: 8
+        type: string
+    required:
+    - email
+    - first_name
+    - last_name
+    - password
+    type: object
   internal_api.TruckEnvelope:
     properties:
       data:
@@ -174,10 +195,14 @@ definitions:
     type: object
   internal_api.UserResponse:
     properties:
+      email:
+        type: string
       first_name:
         type: string
       id:
         type: string
+      is_active:
+        type: boolean
       last_name:
         type: string
     type: object
@@ -200,6 +225,41 @@ info:
   title: Go Learning API
   version: "1.0"
 paths:
+  /authentication/user:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user account as inactive, generate an invitation
+        token, and send an activation email
+      parameters:
+      - description: User registration payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api.RegisterUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_api.UserEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+      summary: Register user
+      tags:
+      - authentication
   /feed:
     get:
       description: Retrieve chronological post feed from followed users with optional

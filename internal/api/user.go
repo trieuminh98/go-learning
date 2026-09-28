@@ -5,18 +5,24 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-playground/validator/v10"
+
 	"go-learning/internal/core"
 	"go-learning/internal/logic"
 )
 
 // UserHandler handles HTTP user requests and maps them to logic.UserService.
 type UserHandler struct {
-	service *logic.UserService
+	service   *logic.UserService
+	validator *validator.Validate
 }
 
 // NewUserHandler creates a new UserHandler.
-func NewUserHandler(service *logic.UserService) *UserHandler {
-	return &UserHandler{service: service}
+func NewUserHandler(service *logic.UserService, validator *validator.Validate) *UserHandler {
+	return &UserHandler{
+		service:   service,
+		validator: validator,
+	}
 }
 
 // CreateUserRequest is the DTO for incoming user creation payload.
@@ -25,11 +31,21 @@ type CreateUserRequest struct {
 	LastName  string `json:"last_name"`
 }
 
+// RegisterUserRequest is the DTO for incoming user registration payload.
+type RegisterUserRequest struct {
+	FirstName string `json:"first_name" validate:"required,max=100"`
+	LastName  string `json:"last_name" validate:"required,max=100"`
+	Email     string `json:"email" validate:"required,email,max=255"`
+	Password  string `json:"password" validate:"required,min=8,max=72"`
+}
+
 // UserResponse is the DTO for outgoing user JSON serialization.
 type UserResponse struct {
 	ID        string `json:"id"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
+	Email     string `json:"email,omitempty"`
+	IsActive  bool   `json:"is_active"`
 }
 
 func toUserResponse(u core.User) UserResponse {
@@ -37,6 +53,8 @@ func toUserResponse(u core.User) UserResponse {
 		ID:        u.ID,
 		FirstName: u.FirstName,
 		LastName:  u.LastName,
+		Email:     u.Email,
+		IsActive:  u.IsActive,
 	}
 }
 
@@ -219,4 +237,46 @@ func (h *UserHandler) Unfollow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// RegisterUser handles POST /v1/authentication/user.
+//
+//	@Summary		Register user
+//	@Description	Register a new user account as inactive, generate an invitation token, and send an activation email
+//	@Tags			authentication
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		RegisterUserRequest	true	"User registration payload"
+//	@Success		201		{object}	UserEnvelope
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		409		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/authentication/user [post]
+func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
+	var input RegisterUserRequest
+
+	if err := readJSON(w, r, &input); err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	if h.validator != nil {
+		if err := h.validator.Struct(input); err != nil {
+			badRequest(w, r, err)
+			return
+		}
+	}
+
+	created, err := h.service.RegisterUser(r.Context(), logic.RegisterUserInput{
+		FirstName: input.FirstName,
+		LastName:  input.LastName,
+		Email:     input.Email,
+		Password:  input.Password,
+	})
+	if err != nil {
+		MapDomainErrorToHTTP(w, r, err)
+		return
+	}
+
+	_ = jsonResponse(w, http.StatusCreated, toUserResponse(created))
 }

@@ -97,7 +97,7 @@ func main() {
 	defer pool.Close()
 
 	queries := generated.New(pool)
-	storage := repository.NewPostgresStorage(queries)
+	storage := repository.NewPostgresStorage(pool, queries)
 
 	seedCtx, seedCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer seedCancel()

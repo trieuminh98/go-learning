@@ -117,6 +117,8 @@ func MapDomainErrorToHTTP(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, core.ErrInvalidFirstName),
 		errors.Is(err, core.ErrInvalidLastName),
+		errors.Is(err, core.ErrInvalidEmail),
+		errors.Is(err, core.ErrInvalidPassword),
 		errors.Is(err, core.ErrInvalidTruckID),
 		errors.Is(err, core.ErrInvalidCapacity),
 		errors.Is(err, core.ErrOverloaded),
@@ -132,6 +134,7 @@ func MapDomainErrorToHTTP(w http.ResponseWriter, r *http.Request, err error) {
 
 	case errors.Is(err, core.ErrTruckNotFound),
 		errors.Is(err, core.ErrUserNotFound),
+		errors.Is(err, core.ErrInvitationNotFound),
 		errors.Is(err, core.ErrPostNotFound):
 		notFound(w, r, err.Error())
 

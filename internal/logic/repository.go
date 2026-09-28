@@ -12,6 +12,28 @@ type UserRepository interface {
 	List(ctx context.Context) ([]core.User, error)
 	GetByID(ctx context.Context, id int64) (core.User, error)
 	Create(ctx context.Context, user core.User) (core.User, error)
+	CreateWithCredentials(ctx context.Context, user core.User) (core.User, error)
+	GetByEmail(ctx context.Context, email string) (core.User, error)
+	Delete(ctx context.Context, id int64) error
+}
+
+// InvitationRepository defines the persistence contract for user activation / invitation tokens.
+type InvitationRepository interface {
+	Create(ctx context.Context, invitation core.Invitation) error
+	DeleteByUserID(ctx context.Context, userID int64) error
+	GetByTokenHash(ctx context.Context, tokenHash []byte) (core.Invitation, error)
+}
+
+// TxStorage provides transaction-scoped repository handles inside a transactional execution unit.
+type TxStorage struct {
+	Users       UserRepository
+	Invitations InvitationRepository
+}
+
+// TransactionManager abstracts database transaction boundary management (Begin, Commit, Rollback)
+// without leaking driver-specific transaction handles into the Logic or API layer.
+type TransactionManager interface {
+	WithinTransaction(ctx context.Context, fn func(tx TxStorage) error) error
 }
 
 // TruckRepository defines the persistence contract required by the truck domain logic.

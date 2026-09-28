@@ -32,7 +32,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		SetLogger(cfg.Logger)
 	}
 
-	userHandler := NewUserHandler(cfg.UserService)
+	userHandler := NewUserHandler(cfg.UserService, cfg.Validator)
 	truckHandler := NewTruckHandler(cfg.TruckService)
 	postHandler := NewPostHandler(cfg.PostService, cfg.Validator)
 	feedHandler := NewFeedHandler(cfg.FeedService)
@@ -54,6 +54,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			public.Get("/swagger/*", httpSwagger.WrapHandler)
 			public.Get("/debug/panic", func(w http.ResponseWriter, r *http.Request) {
 				panic("deliberate test panic for recovery middleware verification")
+			})
+
+			// Authentication / Registration
+			public.Route("/authentication", func(auth chi.Router) {
+				auth.Post("/user", userHandler.RegisterUser)
 			})
 		})
 

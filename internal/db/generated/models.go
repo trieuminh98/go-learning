@@ -41,8 +41,17 @@ type Truck struct {
 }
 
 type User struct {
-	ID        int64              `json:"id"`
-	FirstName string             `json:"first_name"`
-	LastName  string             `json:"last_name"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID           int64              `json:"id"`
+	FirstName    string             `json:"first_name"`
+	LastName     string             `json:"last_name"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	Email        pgtype.Text        `json:"email"`
+	PasswordHash []byte             `json:"password_hash"`
+	IsActive     bool               `json:"is_active"`
+}
+
+type UserInvitation struct {
+	TokenHash []byte             `json:"token_hash"`
+	UserID    int64              `json:"user_id"`
+	Expiry    pgtype.Timestamptz `json:"expiry"`
 }

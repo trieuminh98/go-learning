@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS user_invitations;
+ALTER TABLE users DROP COLUMN IF EXISTS is_active;
+ALTER TABLE users DROP COLUMN IF EXISTS password_hash;
+ALTER TABLE users DROP COLUMN IF EXISTS email;

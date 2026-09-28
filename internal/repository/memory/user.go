@@ -9,7 +9,10 @@ import (
 	"sync"
 
 	"go-learning/internal/core"
+	"go-learning/internal/logic"
 )
+
+var _ logic.UserRepository = (*UserRepository)(nil)
 
 // UserRepository is an in-memory implementation of logic.UserRepository.
 type UserRepository struct {
@@ -47,7 +50,6 @@ func (r *UserRepository) List(ctx context.Context) ([]core.User, error) {
 }
 
 // Create inserts a user into the in-memory store after verifying uniqueness.
-// It assigns a generated ID and returns the stored entity.
 func (r *UserRepository) Create(ctx context.Context, u core.User) (core.User, error) {
 	if err := ctx.Err(); err != nil {
 		return core.User{}, err
@@ -59,6 +61,30 @@ func (r *UserRepository) Create(ctx context.Context, u core.User) (core.User, er
 	for _, existing := range r.users {
 		if strings.EqualFold(existing.FirstName, u.FirstName) && strings.EqualFold(existing.LastName, u.LastName) {
 			return core.User{}, core.ErrUserAlreadyExists
+		}
+	}
+
+	r.userSeq++
+	u.ID = fmt.Sprintf("%d", r.userSeq)
+	r.users[u.ID] = u
+
+	return u, nil
+}
+
+// CreateWithCredentials inserts a user with credentials after verifying email uniqueness.
+func (r *UserRepository) CreateWithCredentials(ctx context.Context, u core.User) (core.User, error) {
+	if err := ctx.Err(); err != nil {
+		return core.User{}, err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if u.Email != "" {
+		for _, existing := range r.users {
+			if strings.EqualFold(existing.Email, u.Email) {
+				return core.User{}, core.ErrUserAlreadyExists
+			}
 		}
 	}
 
@@ -84,4 +110,35 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (core.User, erro
 	}
 
 	return user, nil
+}
+
+// GetByEmail fetches a user by email from memory.
+func (r *UserRepository) GetByEmail(ctx context.Context, email string) (core.User, error) {
+	if err := ctx.Err(); err != nil {
+		return core.User{}, err
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, u := range r.users {
+		if strings.EqualFold(u.Email, email) {
+			return u, nil
+		}
+	}
+
+	return core.User{}, core.ErrUserNotFound
+}
+
+// Delete removes a user record by ID.
+func (r *UserRepository) Delete(ctx context.Context, id int64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	delete(r.users, strconv.FormatInt(id, 10))
+	return nil
 }

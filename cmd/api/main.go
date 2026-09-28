@@ -16,6 +16,7 @@ import (
 	generated "go-learning/internal/db/generated"
 	"go-learning/internal/env"
 	"go-learning/internal/logic"
+	"go-learning/internal/mailer"
 	"go-learning/internal/repository"
 )
 
@@ -184,10 +185,11 @@ func main() {
 
 	// 4. Create sqlc Queries and wire PostgreSQL Storage aggregate
 	queries := generated.New(pool)
-	storage := repository.NewPostgresStorage(queries)
+	storage := repository.NewPostgresStorage(pool, queries)
 
-	// 5. Initialize logic services with only the specific repository each requires
-	userService := logic.NewUserService(storage.Users, storage.Followers)
+	// 5. Initialize mailer and logic services
+	devMailer := mailer.NewDevMailer()
+	userService := logic.NewUserService(storage.Users, storage.Followers, storage.Invitations, storage.TxManager, devMailer)
 	truckService := logic.NewTruckService(storage.Trucks)
 	postService := logic.NewPostService(storage.Posts, storage.Comments)
 	feedService := logic.NewFeedService(storage.Feed)
