@@ -83,8 +83,9 @@ func (r *UserRepository) CreateWithCredentials(ctx context.Context, u core.User)
 	if u.Email != "" {
 		for _, existing := range r.users {
 			if strings.EqualFold(existing.Email, u.Email) {
-				return core.User{}, core.ErrUserAlreadyExists
+				return core.User{}, core.ErrEmailAlreadyExists
 			}
+
 		}
 	}
 

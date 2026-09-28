@@ -29,6 +29,11 @@ type DBConfig struct {
 	MaxLifetime time.Duration
 }
 
+// AuthConfig holds authentication and token configuration.
+type AuthConfig struct {
+	TokenExpiry time.Duration
+}
+
 // Config holds runtime configuration parameters for the application.
 type Config struct {
 	Addr         string
@@ -36,7 +41,9 @@ type Config struct {
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
 	DB           DBConfig
+	Auth         AuthConfig
 }
+
 
 // Application holds runtime dependencies and application lifecycle methods.
 type Application struct {
@@ -152,6 +159,9 @@ func main() {
 			MaxIdleTime: time.Duration(env.GetInt("DB_MAX_CONN_IDLE_TIME_SECONDS", 900)) * time.Second,
 			MaxLifetime: time.Duration(env.GetInt("DB_MAX_CONN_LIFETIME_SECONDS", 3600)) * time.Second,
 		},
+		Auth: AuthConfig{
+			TokenExpiry: time.Duration(env.GetInt("AUTH_TOKEN_EXPIRATION_HOURS", 72)) * time.Hour,
+		},
 	}
 
 	// Configure Swagger host dynamically from runtime environment
@@ -189,10 +199,18 @@ func main() {
 
 	// 5. Initialize mailer and logic services
 	devMailer := mailer.NewDevMailer()
-	userService := logic.NewUserService(storage.Users, storage.Followers, storage.Invitations, storage.TxManager, devMailer)
+	userService := logic.NewUserService(
+		storage.Users,
+		storage.Followers,
+		storage.Invitations,
+		storage.TxManager,
+		devMailer,
+		cfg.Auth.TokenExpiry,
+	)
 	truckService := logic.NewTruckService(storage.Trucks)
 	postService := logic.NewPostService(storage.Posts, storage.Comments)
 	feedService := logic.NewFeedService(storage.Feed)
+
 
 	// 6. Initialize shared request validator
 	validate := validator.New(validator.WithRequiredStructEnabled())

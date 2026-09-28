@@ -93,10 +93,14 @@ func (r *UserRepository) CreateWithCredentials(ctx context.Context, u core.User)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
+			if pgErr.ConstraintName == "users_email_key" {
+				return core.User{}, core.ErrEmailAlreadyExists
+			}
 			return core.User{}, core.ErrUserAlreadyExists
 		}
 		return core.User{}, err
 	}
+
 
 	res := toCoreUser(created.ID, created.FirstName, created.LastName, created.Email, created.IsActive)
 	res.Password = u.Password

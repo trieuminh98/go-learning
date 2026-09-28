@@ -6,56 +6,60 @@ This document details the mental models, architectural boundaries, and implement
 
 ## 1. Core Mental Models
 
-> **Mental core của Registration Transaction & Compensation**:
+> **Mental core của SQL Transaction & Verification Token**:
 >
-> *Atomicity chỉ tồn tại trong cùng một transactional boundary. Ra ngoài boundary đó thì phải orchestration + compensation.*
+> *Một business action muốn atomic thì mọi DB operation phải cùng nằm trong một transaction boundary.*
 
 ```text
-One business workflow
-        ↓
-┌─────────────────────┐
-│ Same DB boundary    │
-│ user + invitation   │
-│ → SQL transaction   │
-└─────────────────────┘
-        ↓
-External system
-email provider
-        ↓
-cannot rollback
-        ↓
-retry / compensate / saga
+Same business action
+→ same transaction
+→ all succeed = COMMIT
+→ any fail = ROLLBACK
 ```
 
-Source architecture áp dụng đúng sự phân định (distinction) này:
-- `create user` + `create invitation` diễn ra trong cùng một cơ sở dữ liệu nên có thể rollback cùng nhau bằng SQL transaction.
-- `send activation email` gọi ra external system (SMTP provider) nên không thể rollback bằng transaction semantics của SQL. Do đó cần workflow orchestration và compensating action.
-
-### 1.1. Hai câu cốt lõi để nhớ:
+### 1.1. Điểm quan trọng nhất về Transaction Boundary
 
 ```text
-Transaction
-= all-or-nothing inside one system
+BEGIN tx
 
-Compensation
-= repair the workflow across systems
+tx.CreateUser()
+tx.CreateInvitation()
+
+COMMIT / ROLLBACK
 ```
 
-### 1.2. Bản chất của Registration:
+> [!CAUTION]
+> Nếu lỡ một bước dùng DB handle thường (connection pool) thay vì `tx`, tính **atomicity coi như bị phá**. User sẽ bị commit ngay lập tức trên pool trong khi invitation thất bại rollback vô nghĩa, để lại inactive orphan user không thể kích hoạt.
+
+### 1.2. Mental thứ hai: Verification Secret Partitioning
+
+> *Plain value chỉ đưa cho user, Database chỉ giữ hash.*
 
 ```text
-Register user
-≠ one INSERT
-
-Register user
-= multi-step state transition
+plain token
+├─→ email / user
+└─→ hash(token) → database
 ```
 
-### 1.3. Câu ngắn nhất:
+Khi kích hoạt (activation):
 
-> **"Local consistency uses transactions; cross-boundary consistency uses workflows."**
+```text
+token from user
+→ hash
+→ compare with stored hash
+```
+
+Source architecture áp dụng đúng pattern này: plaintext token gửi qua link kích hoạt trong email, PostgreSQL chỉ lưu trữ SHA-256 hash.
+
+### 1.3. Hai câu cốt lõi để nhớ:
+
+```text
+Same business action → same transaction.
+Plain secret outward → hashed secret at rest.
+```
 
 ---
+
 
 ## 2. Multi-Step Registration Workflow
 
@@ -151,7 +155,43 @@ delete inactive user
 - **Explicit in Logic**: The compensation is an orchestration concern owned by `UserService`, never hidden inside repository methods.
 - **Idempotency & Re-registration**: Cleaning up the unactivated user ensures the email address is immediately freed so the user can re-attempt registration without receiving an unexpected 409 Conflict.
 
+### 3.4. Single Shared Transaction Invariant: Never Mix Normal DB with Tx Handles
+
+Every database operation participating in an atomic workflow must use the **same transaction**:
+
+```text
+// ❌ WRONG: Breaks atomicity — user is committed immediately via pool!
+BEGIN tx
+normalRepo.CreateUser()      ← outside tx (connection pool)
+txRepo.CreateInvitation()    ← inside tx
+ROLLBACK                     ← only invitation rolled back; orphan user remains!
+
+// ✅ CORRECT: Both operations share the exact same pgx.Tx
+BEGIN tx
+txRepo.CreateUser()          ← bound to tx
+txRepo.CreateInvitation()    ← bound to tx
+COMMIT / ROLLBACK            ← both succeed together, or both abort together
+```
+
+In our architecture:
+- `WithinTransaction(ctx, fn func(tx TxStorage) error)` constructs `txStorage` using `queries.WithTx(tx)`.
+- Inside `UserService.RegisterUser`, operations are executed exclusively through `tx.Users` and `tx.Invitations`.
+- The ambient connection pool handles (`s.repo`, `s.invRepo`) are never invoked inside `WithinTransaction`.
+
+### 3.5. Configurable Expiry & Granular Error Mapping
+
+1. **Configurable Token Expiration**:
+   - Token lifespan is not hardcoded inside repository queries.
+   - Loaded via `AUTH_TOKEN_EXPIRATION_HOURS` (default: `72h`) in `cmd/api/main.go` and injected into `UserService`.
+   - `RegisterUser` dynamically calculates `expires_at = time.Now().Add(s.tokenExpiry)`.
+
+2. **Repository-Boundary Error Mapping**:
+   - Raw database driver error codes and constraint names are intercepted in the repository adapter.
+   - When PostgreSQL returns code `23505` (`unique_violation`) with constraint `users_email_key`, the repository maps it to `core.ErrEmailAlreadyExists`.
+   - Upper layers (`Logic`, `API`) never inspect Postgres strings or SQL state codes.
+
 ---
+
 
 ## 4. Security & Cryptographic Invariants
 
@@ -176,6 +216,7 @@ delete inactive user
 | Stage / Condition | Root Cause | HTTP Status | Response Payload |
 |---|---|---|---|
 | Input validation | Missing name, invalid email, password < 8 chars | `400 Bad Request` | `{"error": "invalid email address"}` |
-| Duplicate email | Unique constraint violation (`users_email_key`) | `409 Conflict` | `{"error": "user already exists"}` |
+| Duplicate email | Unique constraint violation (`users_email_key`) | `409 Conflict` | `{"error": "email already exists"}` |
 | DB transaction failure | PostgreSQL query error, connection drop, timeout | `500 Internal Server Error` | `{"error": "the server encountered a problem"}` |
+
 | Mailer dispatch failure | SMTP timeout / network error (triggers compensation) | `500 Internal Server Error` | `{"error": "the server encountered a problem"}` |

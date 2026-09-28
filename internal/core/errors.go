@@ -15,7 +15,9 @@ var (
 	ErrInvalidEmail      = errors.New("invalid email address")
 	ErrInvalidPassword   = errors.New("invalid password")
 	ErrUserAlreadyExists = errors.New("user already exists")
+	ErrEmailAlreadyExists = errors.New("email already exists")
 	ErrUserNotFound      = errors.New("user not found")
+
 	ErrInvitationNotFound = errors.New("invitation not found or expired")
 
 	ErrInvalidTitle        = errors.New("title must not be empty")

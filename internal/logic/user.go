@@ -26,6 +26,7 @@ type UserService struct {
 	invRepo      InvitationRepository
 	txManager    TransactionManager
 	mailer       Mailer
+	tokenExpiry  time.Duration
 }
 
 // NewUserService constructs a UserService with its required dependencies.
@@ -35,15 +36,21 @@ func NewUserService(
 	invRepo InvitationRepository,
 	txManager TransactionManager,
 	mailer Mailer,
+	tokenExpiry time.Duration,
 ) *UserService {
+	if tokenExpiry <= 0 {
+		tokenExpiry = 72 * time.Hour
+	}
 	return &UserService{
 		repo:         repo,
 		followerRepo: followerRepo,
 		invRepo:      invRepo,
 		txManager:    txManager,
 		mailer:       mailer,
+		tokenExpiry:  tokenExpiry,
 	}
 }
+
 
 // ListUsers returns all users currently stored via the repository.
 func (s *UserService) ListUsers(ctx context.Context) ([]core.User, error) {
@@ -121,8 +128,9 @@ func (s *UserService) RegisterUser(ctx context.Context, input RegisterUserInput)
 		invitation := core.Invitation{
 			TokenHash: tokenHash,
 			UserID:    userID,
-			Expiry:    time.Now().Add(3 * 24 * time.Hour), // 3 days expiry
+			Expiry:    time.Now().Add(s.tokenExpiry),
 		}
+
 
 		return tx.Invitations.Create(ctx, invitation)
 	})
