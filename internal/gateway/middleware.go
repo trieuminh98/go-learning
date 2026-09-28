@@ -2,6 +2,9 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -120,4 +123,64 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// BasicAuthMiddleware enforces HTTP Basic Authentication for protected route groups.
+// It verifies the username and password in constant time using SHA-256 digests
+// to prevent timing attacks. On failure, it returns 401 Unauthorized with
+// a standard WWW-Authenticate challenge header and a JSON error body.
+func BasicAuthMiddleware(expectedUser, expectedPass string) func(http.Handler) http.Handler {
+	expectedUserHash := sha256.Sum256([]byte(expectedUser))
+	expectedPassHash := sha256.Sum256([]byte(expectedPass))
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if expectedUser == "" || expectedPass == "" {
+				unauthorizedBasicAuth(w)
+				return
+			}
+
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				unauthorizedBasicAuth(w)
+				return
+			}
+
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Basic") {
+				unauthorizedBasicAuth(w)
+				return
+			}
+
+			decoded, err := base64.StdEncoding.DecodeString(parts[1])
+			if err != nil {
+				unauthorizedBasicAuth(w)
+				return
+			}
+
+			username, password, found := strings.Cut(string(decoded), ":")
+			if !found {
+				unauthorizedBasicAuth(w)
+				return
+			}
+
+			givenUserHash := sha256.Sum256([]byte(username))
+			givenPassHash := sha256.Sum256([]byte(password))
+
+			userMatch := subtle.ConstantTimeCompare(givenUserHash[:], expectedUserHash[:]) == 1
+			passMatch := subtle.ConstantTimeCompare(givenPassHash[:], expectedPassHash[:]) == 1
+
+			if !userMatch || !passMatch {
+				unauthorizedBasicAuth(w)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func unauthorizedBasicAuth(w http.ResponseWriter) {
+	w.Header().Set("WWW-Authenticate", `Basic realm="Restricted", charset="UTF-8"`)
+	writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 }

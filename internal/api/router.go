@@ -15,12 +15,14 @@ import (
 
 // RouterConfig bundles the handler dependencies needed to build the API route tree.
 type RouterConfig struct {
-	UserService  *logic.UserService
-	TruckService *logic.TruckService
-	PostService  *logic.PostService
-	FeedService  *logic.FeedService
-	Validator    *validator.Validate
-	Logger       *zap.SugaredLogger
+	UserService   *logic.UserService
+	TruckService  *logic.TruckService
+	PostService   *logic.PostService
+	FeedService   *logic.FeedService
+	Validator     *validator.Validate
+	Logger        *zap.SugaredLogger
+	BasicAuthUser string
+	BasicAuthPass string
 }
 
 // NewRouter builds and returns the application HTTP handler using Chi.
@@ -31,6 +33,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	if cfg.Logger != nil {
 		SetLogger(cfg.Logger)
 	}
+
+	basicAuthMiddleware := gateway.BasicAuthMiddleware(cfg.BasicAuthUser, cfg.BasicAuthPass)
 
 	userHandler := NewUserHandler(cfg.UserService, cfg.Validator)
 	truckHandler := NewTruckHandler(cfg.TruckService)
@@ -48,14 +52,19 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	// 2. Versioned API routes under /v1 prefix
 	r.Route("/v1", func(v1 chi.Router) {
-		// Public route group: no authentication required
-		v1.Group(func(public chi.Router) {
-			public.Get("/health", HealthHandler)
-			public.Get("/swagger/*", httpSwagger.WrapHandler)
-			public.Get("/debug/panic", func(w http.ResponseWriter, r *http.Request) {
+		// Tooling route group: protected by Gateway BasicAuthMiddleware
+		v1.Group(func(tooling chi.Router) {
+			tooling.Use(basicAuthMiddleware)
+
+			tooling.Get("/health", HealthHandler)
+			tooling.Get("/swagger/*", httpSwagger.WrapHandler)
+			tooling.Get("/debug/panic", func(w http.ResponseWriter, r *http.Request) {
 				panic("deliberate test panic for recovery middleware verification")
 			})
+		})
 
+		// Public route group: no authentication required
+		v1.Group(func(public chi.Router) {
 			// Authentication / Registration / Activation
 			public.Route("/authentication", func(auth chi.Router) {
 				auth.Post("/user", userHandler.RegisterUser)

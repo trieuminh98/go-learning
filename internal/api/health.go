@@ -13,13 +13,15 @@ type HealthResponse struct {
 
 type healthResponse = HealthResponse
 
-// HealthHandler returns API service availability. Public endpoint without authentication.
+// HealthHandler returns API service availability. Tooling endpoint protected by Basic Auth.
 //
 //	@Summary		Health check
 //	@Description	Returns service status, environment, and version
 //	@Tags			system
 //	@Produce		json
+//	@Security		BasicAuth
 //	@Success		200	{object}	HealthResponse
+//	@Failure		401	{object}	ErrorResponse
 //	@Router			/health [get]
 func HealthHandler(w http.ResponseWriter, r *http.Request) {
 	_ = jsonResponse(w, http.StatusOK, HealthResponse{

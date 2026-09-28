@@ -343,6 +343,12 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/internal_api.HealthResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BasicAuth: []
       summary: Health check
       tags:
       - system
@@ -792,6 +798,8 @@ paths:
       tags:
       - users
 securityDefinitions:
+  BasicAuth:
+    type: basic
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.
     in: header

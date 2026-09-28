@@ -32,6 +32,8 @@ type DBConfig struct {
 // AuthConfig holds authentication and token configuration.
 type AuthConfig struct {
 	TokenExpiry time.Duration
+	BasicUser   string
+	BasicPass   string
 }
 
 // Config holds runtime configuration parameters for the application.
@@ -80,12 +82,14 @@ func NewApplication(
 // Notice: Returns http.Handler interface, completely decoupled from any concrete router type.
 func (app *Application) routes() http.Handler {
 	return api.NewRouter(api.RouterConfig{
-		UserService:  app.userService,
-		TruckService: app.truckService,
-		PostService:  app.postService,
-		FeedService:  app.feedService,
-		Validator:    app.validator,
-		Logger:       app.logger,
+		UserService:   app.userService,
+		TruckService:  app.truckService,
+		PostService:   app.postService,
+		FeedService:   app.feedService,
+		Validator:     app.validator,
+		Logger:        app.logger,
+		BasicAuthUser: app.config.Auth.BasicUser,
+		BasicAuthPass: app.config.Auth.BasicPass,
 	})
 }
 
@@ -128,6 +132,8 @@ func (app *Application) run() error {
 // @in							header
 // @name						Authorization
 // @description				Type "Bearer" followed by a space and JWT token.
+//
+// @securityDefinitions.basic	BasicAuth
 func main() {
 	// 1. Initialize Zap structured logger
 	appEnv := env.GetString("APP_ENV", "development")
@@ -160,7 +166,13 @@ func main() {
 		},
 		Auth: AuthConfig{
 			TokenExpiry: time.Duration(env.GetInt("AUTH_TOKEN_EXPIRATION_HOURS", 72)) * time.Hour,
+			BasicUser:   env.GetString("AUTH_BASIC_USER", "admin"),
+			BasicPass:   env.GetString("AUTH_BASIC_PASS", "admin"),
 		},
+	}
+
+	if appEnv == "production" && cfg.Auth.BasicUser == "admin" && cfg.Auth.BasicPass == "admin" {
+		logger.Warnw("using default basic auth credentials in production environment is insecure")
 	}
 
 	// Configure Swagger host dynamically from runtime environment
