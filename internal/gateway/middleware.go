@@ -4,16 +4,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"runtime/debug"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type contextKey string
 
 const requestIDKey contextKey = "request_id"
+
+// RequestIDFromContext retrieves the request ID associated with the context.
+func RequestIDFromContext(ctx context.Context) string {
+	if val, ok := ctx.Value(requestIDKey).(string); ok {
+		return val
+	}
+	return ""
+}
 
 type errorResponse struct {
 	Error string `json:"error"`
@@ -25,19 +34,29 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 	_ = json.NewEncoder(w).Encode(data)
 }
 
-// RecoveryMiddleware catches panics, prevents process crash, and returns 500 JSON.
-func RecoveryMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if rec := recover(); rec != nil {
-				reqID, _ := r.Context().Value(requestIDKey).(string)
-				log.Printf("[%s] PANIC RECOVERED: %v\n%s", reqID, rec, string(debug.Stack()))
-				w.Header().Set("Connection", "close")
-				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
+// RecoveryMiddleware catches panics, logs structured error with stack trace, and returns 500 JSON.
+func RecoveryMiddleware(logger *zap.SugaredLogger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					reqID := RequestIDFromContext(r.Context())
+					if logger != nil {
+						logger.Errorw("panic recovered",
+							"request_id", reqID,
+							"method", r.Method,
+							"path", r.URL.Path,
+							"error", fmt.Sprintf("%v", rec),
+							"stack", string(debug.Stack()),
+						)
+					}
+					w.Header().Set("Connection", "close")
+					writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+				}
+			}()
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // RequestIDMiddleware injects a request ID header and context value.
@@ -53,16 +72,25 @@ func RequestIDMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// LoggingMiddleware records request execution duration and method/path.
-func LoggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		reqID, _ := r.Context().Value(requestIDKey).(string)
+// LoggingMiddleware records request execution duration and method/path using structured logging.
+func LoggingMiddleware(logger *zap.SugaredLogger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			reqID := RequestIDFromContext(r.Context())
 
-		log.Printf("[%s] Started %s %s", reqID, r.Method, r.URL.Path)
-		next.ServeHTTP(w, r)
-		log.Printf("[%s] Completed in %v", reqID, time.Since(start))
-	})
+			next.ServeHTTP(w, r)
+
+			if logger != nil {
+				logger.Infow("request completed",
+					"request_id", reqID,
+					"method", r.Method,
+					"path", r.URL.Path,
+					"duration_ms", time.Since(start).Milliseconds(),
+				)
+			}
+		})
+	}
 }
 
 // TimeoutMiddleware bounds request execution duration using context timeout.

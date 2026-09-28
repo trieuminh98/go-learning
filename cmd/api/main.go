@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"go.uber.org/zap"
 
 	"go-learning/docs"
 	"go-learning/internal/api"
@@ -44,6 +45,7 @@ type Application struct {
 	postService  *logic.PostService
 	feedService  *logic.FeedService
 	validator    *validator.Validate
+	logger       *zap.SugaredLogger
 }
 
 // NewApplication constructs the Application root with injected dependencies.
@@ -54,6 +56,7 @@ func NewApplication(
 	postService *logic.PostService,
 	feedService *logic.FeedService,
 	validator *validator.Validate,
+	logger *zap.SugaredLogger,
 ) *Application {
 	return &Application{
 		config:       cfg,
@@ -62,6 +65,7 @@ func NewApplication(
 		postService:  postService,
 		feedService:  feedService,
 		validator:    validator,
+		logger:       logger,
 	}
 }
 
@@ -74,6 +78,7 @@ func (app *Application) routes() http.Handler {
 		PostService:  app.postService,
 		FeedService:  app.feedService,
 		Validator:    app.validator,
+		Logger:       app.logger,
 	})
 }
 
@@ -87,8 +92,12 @@ func (app *Application) run() error {
 		IdleTimeout:  app.config.IdleTimeout,
 	}
 
-	log.Printf("Server listening on %s (ReadTimeout=%v, WriteTimeout=%v, IdleTimeout=%v)...",
-		srv.Addr, srv.ReadTimeout, srv.WriteTimeout, srv.IdleTimeout)
+	app.logger.Infow("server listening",
+		"addr", srv.Addr,
+		"read_timeout", srv.ReadTimeout,
+		"write_timeout", srv.WriteTimeout,
+		"idle_timeout", srv.IdleTimeout,
+	)
 
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
@@ -113,7 +122,23 @@ func (app *Application) run() error {
 // @name						Authorization
 // @description				Type "Bearer" followed by a space and JWT token.
 func main() {
-	// 1. Load runtime configuration
+	// 1. Initialize Zap structured logger
+	appEnv := env.GetString("APP_ENV", "development")
+	var zapLogger *zap.Logger
+	var err error
+	if appEnv == "production" {
+		zapLogger, err = zap.NewProduction()
+	} else {
+		zapLogger, err = zap.NewDevelopment()
+	}
+	if err != nil {
+		log.Fatalf("failed to initialize zap logger: %v", err)
+	}
+	defer zapLogger.Sync()
+
+	logger := zapLogger.Sugar().With("environment", appEnv)
+
+	// 2. Load runtime configuration
 	cfg := Config{
 		Addr:         env.GetString("SERVER_ADDR", ":8080"),
 		ReadTimeout:  time.Duration(env.GetInt("SERVER_READ_TIMEOUT_SECONDS", 5)) * time.Second,
@@ -135,7 +160,7 @@ func main() {
 		docs.SwaggerInfo.Host = "localhost" + cfg.Addr
 	}
 
-	// 2. Initialize PostgreSQL connection pool with bounded startup timeout
+	// 3. Initialize PostgreSQL connection pool with bounded startup timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -148,31 +173,33 @@ func main() {
 		cfg.DB.MaxLifetime,
 	)
 	if err != nil {
-		log.Fatalf("database connection failure: %v", err)
+		logger.Fatalw("database connection failure", "error", err)
 	}
 	defer pool.Close() // Creator owns cleanup
 
-	log.Printf("Connected to PostgreSQL pool (MaxConns=%d, MinConns=%d)", cfg.DB.MaxConns, cfg.DB.MinConns)
+	logger.Infow("connected to postgresql pool",
+		"max_conns", cfg.DB.MaxConns,
+		"min_conns", cfg.DB.MinConns,
+	)
 
-	// 3. Create sqlc Queries and wire PostgreSQL Storage aggregate
+	// 4. Create sqlc Queries and wire PostgreSQL Storage aggregate
 	queries := generated.New(pool)
 	storage := repository.NewPostgresStorage(queries)
 
-	// 4. Initialize logic services with only the specific repository each requires
+	// 5. Initialize logic services with only the specific repository each requires
 	userService := logic.NewUserService(storage.Users, storage.Followers)
 	truckService := logic.NewTruckService(storage.Trucks)
 	postService := logic.NewPostService(storage.Posts, storage.Comments)
 	feedService := logic.NewFeedService(storage.Feed)
 
-	// 5. Initialize shared request validator
+	// 6. Initialize shared request validator
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
-	// 6. Instantiate Application composition root
-	app := NewApplication(cfg, userService, truckService, postService, feedService, validate)
+	// 7. Instantiate Application composition root
+	app := NewApplication(cfg, userService, truckService, postService, feedService, validate, logger)
 
-	// 7. Start server
+	// 8. Start server
 	if err := app.run(); err != nil {
-		log.Fatalf("server failure: %v", err)
+		logger.Fatalw("server failure", "error", err)
 	}
-
 }

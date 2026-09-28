@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
+	"go.uber.org/zap"
 
 	"go-learning/internal/gateway"
 	"go-learning/internal/logic"
@@ -19,6 +20,7 @@ type RouterConfig struct {
 	PostService  *logic.PostService
 	FeedService  *logic.FeedService
 	Validator    *validator.Validate
+	Logger       *zap.SugaredLogger
 }
 
 // NewRouter builds and returns the application HTTP handler using Chi.
@@ -26,15 +28,19 @@ type RouterConfig struct {
 func NewRouter(cfg RouterConfig) http.Handler {
 	r := chi.NewRouter()
 
+	if cfg.Logger != nil {
+		SetLogger(cfg.Logger)
+	}
+
 	userHandler := NewUserHandler(cfg.UserService)
 	truckHandler := NewTruckHandler(cfg.TruckService)
 	postHandler := NewPostHandler(cfg.PostService, cfg.Validator)
 	feedHandler := NewFeedHandler(cfg.FeedService)
 
 	// 1. Gateway global cross-cutting middleware stack
-	r.Use(gateway.RecoveryMiddleware)
+	r.Use(gateway.RecoveryMiddleware(cfg.Logger))
 	r.Use(gateway.RequestIDMiddleware)
-	r.Use(gateway.LoggingMiddleware)
+	r.Use(gateway.LoggingMiddleware(cfg.Logger))
 	r.Use(gateway.TimeoutMiddleware(10 * time.Second))
 
 	// Root welcome route
