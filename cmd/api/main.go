@@ -53,13 +53,15 @@ type Config struct {
 
 // Application holds runtime dependencies and application lifecycle methods.
 type Application struct {
-	config       Config
-	userService  *logic.UserService
-	truckService *logic.TruckService
-	postService  *logic.PostService
-	feedService  *logic.FeedService
-	validator    *validator.Validate
-	logger       *zap.SugaredLogger
+	config        Config
+	userService   *logic.UserService
+	truckService  *logic.TruckService
+	postService   *logic.PostService
+	feedService   *logic.FeedService
+	authenticator logic.Authenticator
+	userRepo      logic.UserRepository
+	validator     *validator.Validate
+	logger        *zap.SugaredLogger
 }
 
 // NewApplication constructs the Application root with injected dependencies.
@@ -69,17 +71,21 @@ func NewApplication(
 	truckService *logic.TruckService,
 	postService *logic.PostService,
 	feedService *logic.FeedService,
+	authenticator logic.Authenticator,
+	userRepo logic.UserRepository,
 	validator *validator.Validate,
 	logger *zap.SugaredLogger,
 ) *Application {
 	return &Application{
-		config:       cfg,
-		userService:  userService,
-		truckService: truckService,
-		postService:  postService,
-		feedService:  feedService,
-		validator:    validator,
-		logger:       logger,
+		config:        cfg,
+		userService:   userService,
+		truckService:  truckService,
+		postService:   postService,
+		feedService:   feedService,
+		authenticator: authenticator,
+		userRepo:      userRepo,
+		validator:     validator,
+		logger:        logger,
 	}
 }
 
@@ -95,6 +101,8 @@ func (app *Application) routes() http.Handler {
 		Logger:        app.logger,
 		BasicAuthUser: app.config.Auth.BasicUser,
 		BasicAuthPass: app.config.Auth.BasicPass,
+		Authenticator: app.authenticator,
+		UserRepo:      app.userRepo,
 	})
 }
 
@@ -251,7 +259,7 @@ func main() {
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
 	// 7. Instantiate Application composition root
-	app := NewApplication(cfg, userService, truckService, postService, feedService, validate, logger)
+	app := NewApplication(cfg, userService, truckService, postService, feedService, jwtAuth, storage.Users, validate, logger)
 
 	// 8. Start server
 	if err := app.run(); err != nil {

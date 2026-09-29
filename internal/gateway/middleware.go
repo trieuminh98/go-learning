@@ -9,15 +9,33 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
 	"go.uber.org/zap"
+
+	"go-learning/internal/core"
+	"go-learning/internal/logic"
 )
 
 type contextKey string
 
-const requestIDKey contextKey = "request_id"
+const (
+	requestIDKey   contextKey = "request_id"
+	userContextKey contextKey = "authenticated_user"
+)
+
+// ContextWithUser associates the authenticated core.User with the request context.
+func ContextWithUser(ctx context.Context, user core.User) context.Context {
+	return context.WithValue(ctx, userContextKey, user)
+}
+
+// UserFromContext extracts the authenticated core.User from the request context.
+func UserFromContext(ctx context.Context) (core.User, bool) {
+	user, ok := ctx.Value(userContextKey).(core.User)
+	return user, ok
+}
 
 // RequestIDFromContext retrieves the request ID associated with the context.
 func RequestIDFromContext(ctx context.Context) string {
@@ -107,22 +125,58 @@ func TimeoutMiddleware(timeout time.Duration) func(http.Handler) http.Handler {
 	}
 }
 
-// AuthMiddleware enforces inbound token authentication for protected route groups.
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized: missing authorization header"})
-			return
-		}
+// JWTAuthMiddleware enforces inbound Bearer JWT authentication for protected route groups.
+// It verifies token signature and standard claims via logic.Authenticator, hydrates the active user
+// from logic.UserRepository, and attaches the user to request context.
+// Any failure (missing header, bad format, invalid token, non-existent or inactive user)
+// returns a generic 401 Unauthorized JSON response to prevent information leakage.
+func JWTAuthMiddleware(auth logic.Authenticator, userRepo logic.UserRepository) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				unauthorizedJWT(w)
+				return
+			}
 
-		if !strings.HasPrefix(authHeader, "Bearer ") || strings.TrimPrefix(authHeader, "Bearer ") != "secret-token" {
-			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized: invalid token"})
-			return
-		}
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" {
+				unauthorizedJWT(w)
+				return
+			}
 
-		next.ServeHTTP(w, r)
-	})
+			claims, err := auth.ValidateToken(parts[1])
+			if err != nil {
+				unauthorizedJWT(w)
+				return
+			}
+
+			userID, err := strconv.ParseInt(claims.UserID, 10, 64)
+			if err != nil || userID <= 0 {
+				unauthorizedJWT(w)
+				return
+			}
+
+			user, err := userRepo.GetByID(r.Context(), userID)
+			if err != nil {
+				unauthorizedJWT(w)
+				return
+			}
+
+			if !user.IsActive {
+				unauthorizedJWT(w)
+				return
+			}
+
+			ctx := ContextWithUser(r.Context(), user)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func unauthorizedJWT(w http.ResponseWriter) {
+	w.Header().Set("WWW-Authenticate", "Bearer")
+	writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 }
 
 // BasicAuthMiddleware enforces HTTP Basic Authentication for protected route groups.

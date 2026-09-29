@@ -15,7 +15,8 @@ type TokenClaims struct {
 	NotBefore time.Time
 }
 
-// Authenticator defines the application-facing contract for cryptographic token generation.
+// Authenticator defines the application-facing contract for cryptographic token generation and validation.
 type Authenticator interface {
 	GenerateToken(claims TokenClaims) (string, error)
+	ValidateToken(tokenString string) (*TokenClaims, error)
 }

@@ -4,17 +4,15 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-playground/validator/v10"
 
 	"go-learning/internal/core"
+	"go-learning/internal/gateway"
 	"go-learning/internal/logic"
 )
-
-type userContextKey string
-
-const contextUserIDKey userContextKey = "authenticated_user_id"
 
 type postContextKey string
 
@@ -22,19 +20,20 @@ const contextPostKey postContextKey = "post"
 
 // ContextWithUserID associates an authenticated user ID with the request context.
 func ContextWithUserID(ctx context.Context, userID int64) context.Context {
-	return context.WithValue(ctx, contextUserIDKey, userID)
+	return gateway.ContextWithUser(ctx, core.User{ID: strconv.FormatInt(userID, 10), IsActive: true})
 }
 
 // UserIDFromContext extracts the authenticated user ID from context.
-// In the current development stage, it falls back to 1 (default user ID) if unauthenticated.
-// TODO: Replace fallback with strict rejection once Auth Middleware is fully wired.
 func UserIDFromContext(ctx context.Context) (int64, error) {
-	val := ctx.Value(contextUserIDKey)
-	if id, ok := val.(int64); ok && id > 0 {
-		return id, nil
+	user, ok := gateway.UserFromContext(ctx)
+	if !ok {
+		return 0, errors.New("unauthorized: user not found in context")
 	}
-	// Isolated temporary fallback for dev
-	return 1, nil
+	id, err := strconv.ParseInt(user.ID, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, errors.New("unauthorized: invalid user id in context")
+	}
+	return id, nil
 }
 
 // ContextWithPost associates a resolved core.Post with the request context.

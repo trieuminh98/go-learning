@@ -1,9 +1,7 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
@@ -167,26 +165,6 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	_ = jsonResponse(w, http.StatusOK, toUserResponse(user))
 }
 
-// resolveActorID resolves the actor user ID performing a relationship or feed action.
-// It checks for a temporary client-provided query param (GET) or JSON body payload (PUT/POST)
-// and falls back to the authenticated user ID in request context.
-func resolveActorID(r *http.Request) (int64, error) {
-	if queryID := r.URL.Query().Get("user_id"); queryID != "" {
-		if id, err := strconv.ParseInt(queryID, 10, 64); err == nil && id > 0 {
-			return id, nil
-		}
-	}
-	if r.Body != nil && r.ContentLength > 0 {
-		var input struct {
-			UserID int64 `json:"user_id"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&input); err == nil && input.UserID > 0 {
-			return input.UserID, nil
-		}
-	}
-	return UserIDFromContext(r.Context())
-}
-
 // Follow handles PUT /v1/users/{userID}/follow.
 //
 //	@Summary		Follow user
@@ -208,9 +186,9 @@ func (h *UserHandler) Follow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actorID, err := resolveActorID(r)
+	actorID, err := UserIDFromContext(r.Context())
 	if err != nil {
-		badRequest(w, r, err)
+		unauthorized(w, r, "unauthorized")
 		return
 	}
 
@@ -242,9 +220,9 @@ func (h *UserHandler) Unfollow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actorID, err := resolveActorID(r)
+	actorID, err := UserIDFromContext(r.Context())
 	if err != nil {
-		badRequest(w, r, err)
+		unauthorized(w, r, "unauthorized")
 		return
 	}
 

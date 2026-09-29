@@ -35,9 +35,9 @@ func NewFeedHandler(service *logic.FeedService) *FeedHandler {
 //	@Failure		500			{object}	ErrorResponse
 //	@Router			/feed [get]
 func (h *FeedHandler) GetFeed(w http.ResponseWriter, r *http.Request) {
-	actorID, err := resolveActorID(r)
+	actorID, err := UserIDFromContext(r.Context())
 	if err != nil {
-		badRequest(w, r, err)
+		unauthorized(w, r, "unauthorized")
 		return
 	}
 

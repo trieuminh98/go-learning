@@ -23,6 +23,8 @@ type RouterConfig struct {
 	Logger        *zap.SugaredLogger
 	BasicAuthUser string
 	BasicAuthPass string
+	Authenticator logic.Authenticator
+	UserRepo      logic.UserRepository
 }
 
 // NewRouter builds and returns the application HTTP handler using Chi.
@@ -35,6 +37,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	}
 
 	basicAuthMiddleware := gateway.BasicAuthMiddleware(cfg.BasicAuthUser, cfg.BasicAuthPass)
+	jwtAuthMiddleware := gateway.JWTAuthMiddleware(cfg.Authenticator, cfg.UserRepo)
 
 	userHandler := NewUserHandler(cfg.UserService, cfg.Validator)
 	truckHandler := NewTruckHandler(cfg.TruckService)
@@ -74,9 +77,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			})
 		})
 
-		// Private route group: protected by Gateway AuthMiddleware
+		// Private route group: protected by Gateway JWTAuthMiddleware
 		v1.Group(func(private chi.Router) {
-			private.Use(gateway.AuthMiddleware)
+			private.Use(jwtAuthMiddleware)
 
 			// Example protected route
 			private.Get("/private/profile", ProtectedExampleHandler)

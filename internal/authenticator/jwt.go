@@ -76,3 +76,68 @@ func (a *JWTAuthenticator) GenerateToken(claims logic.TokenClaims) (string, erro
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, registeredClaims)
 	return token.SignedString(a.secret)
 }
+
+// ValidateToken parses and validates a signed JWT string against HMAC-SHA256,
+// expiration time, configured issuer, and configured audience.
+func (a *JWTAuthenticator) ValidateToken(tokenString string) (*logic.TokenClaims, error) {
+	var claims jwt.RegisteredClaims
+
+	opts := []jwt.ParserOption{
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
+		jwt.WithExpirationRequired(),
+	}
+	if a.issuer != "" {
+		opts = append(opts, jwt.WithIssuer(a.issuer))
+	}
+	if a.audience != "" {
+		opts = append(opts, jwt.WithAudience(a.audience))
+	}
+
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&claims,
+		func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, errors.New("unexpected signing method")
+			}
+			return a.secret, nil
+		},
+		opts...,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if !token.Valid {
+		return nil, errors.New("invalid token")
+	}
+
+	var exp time.Time
+	if claims.ExpiresAt != nil {
+		exp = claims.ExpiresAt.Time
+	}
+
+	var iat time.Time
+	if claims.IssuedAt != nil {
+		iat = claims.IssuedAt.Time
+	}
+
+	var nbf time.Time
+	if claims.NotBefore != nil {
+		nbf = claims.NotBefore.Time
+	}
+
+	var aud string
+	if len(claims.Audience) > 0 {
+		aud = claims.Audience[0]
+	}
+
+	return &logic.TokenClaims{
+		UserID:    claims.Subject,
+		Issuer:    claims.Issuer,
+		Audience:  aud,
+		ExpiresAt: exp,
+		IssuedAt:  iat,
+		NotBefore: nbf,
+	}, nil
+}
