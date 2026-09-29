@@ -2,6 +2,7 @@ package logic
 
 import (
 	"context"
+	"time"
 
 	"go-learning/internal/core"
 )
@@ -16,6 +17,20 @@ type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (core.User, error)
 	Activate(ctx context.Context, id int64) error
 	Delete(ctx context.Context, id int64) error
+}
+
+// UserCache defines the contract for caching user entities.
+// It abstracts concrete cache implementations (e.g. Redis) from the application core.
+type UserCache interface {
+	Get(ctx context.Context, userID int64) (*core.User, error)
+	Set(ctx context.Context, user *core.User, ttl time.Duration) error
+	Delete(ctx context.Context, userID int64) error
+}
+
+// UserGetter provides read access to user entities by ID.
+// Both UserRepository and UserService satisfy this interface.
+type UserGetter interface {
+	GetByID(ctx context.Context, id int64) (core.User, error)
 }
 
 // RoleRepository defines the persistence contract for querying system and user roles.

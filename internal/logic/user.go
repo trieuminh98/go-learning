@@ -21,7 +21,7 @@ type RegisterUserInput struct {
 }
 
 // UserService orchestrates user use-cases using UserRepository, FollowerRepository,
-// InvitationRepository, TransactionManager, Mailer, and Authenticator.
+// InvitationRepository, TransactionManager, Mailer, Authenticator, and optional UserCache.
 type UserService struct {
 	repo          UserRepository
 	followerRepo  FollowerRepository
@@ -30,6 +30,8 @@ type UserService struct {
 	mailer        Mailer
 	tokenExpiry   time.Duration
 	authenticator Authenticator
+	cache         UserCache
+	cacheTTL      time.Duration
 }
 
 // NewUserService constructs a UserService with its required dependencies.
@@ -56,15 +58,47 @@ func NewUserService(
 	}
 }
 
+// WithCache configures an optional UserCache and TTL on the UserService.
+func (s *UserService) WithCache(cache UserCache, ttl time.Duration) *UserService {
+	s.cache = cache
+	s.cacheTTL = ttl
+	return s
+}
 
 // ListUsers returns all users currently stored via the repository.
 func (s *UserService) ListUsers(ctx context.Context) ([]core.User, error) {
 	return s.repo.List(ctx)
 }
 
-// GetUser retrieves a single user by ID via the repository.
+// GetUser retrieves a single user by ID using the cache-aside pattern:
+//  1. If cache is enabled, attempts to read user:{id} from cache.
+//  2. If cache hit, returns the cached core.User immediately.
+//  3. If cache miss or non-fatal cache error, falls back to the database repository.
+//  4. If database lookup succeeds and cache is enabled, asynchronously/synchronously writes back to cache.
 func (s *UserService) GetUser(ctx context.Context, id int64) (core.User, error) {
-	return s.repo.GetByID(ctx, id)
+	if s.cache != nil {
+		cached, err := s.cache.Get(ctx, id)
+		if err == nil && cached != nil {
+			return *cached, nil
+		}
+	}
+
+	user, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return core.User{}, err
+	}
+
+	if s.cache != nil {
+		_ = s.cache.Set(ctx, &user, s.cacheTTL)
+	}
+
+	return user, nil
+}
+
+// GetByID satisfies the UserGetter interface, delegating to GetUser so all callers
+// (such as authentication middleware) benefit from the centralized cache-aside path.
+func (s *UserService) GetByID(ctx context.Context, id int64) (core.User, error) {
+	return s.GetUser(ctx, id)
 }
 
 // CreateUser coordinates domain validation and delegates storage to the repository.
@@ -166,6 +200,10 @@ func (s *UserService) compensateRegistration(ctx context.Context, userIDStr stri
 		return err
 	}
 
+	if s.cache != nil {
+		_ = s.cache.Delete(ctx, userID)
+	}
+
 	if s.invRepo != nil {
 		_ = s.invRepo.DeleteByUserID(ctx, userID)
 	}
@@ -181,6 +219,7 @@ func (s *UserService) compensateRegistration(ctx context.Context, userIDStr stri
 //     - Sets user is_active = true.
 //     - Deletes the invitation record(s) for the user to consume the one-time capability.
 //  3. If token does not exist or has expired, returns core.ErrInvitationNotFound uniformly.
+//  4. Upon successful transaction commit, invalidates the user in cache.
 func (s *UserService) ActivateUser(ctx context.Context, plainToken string) error {
 	plainToken = strings.TrimSpace(plainToken)
 	if plainToken == "" {
@@ -189,7 +228,8 @@ func (s *UserService) ActivateUser(ctx context.Context, plainToken string) error
 
 	tokenHash := core.HashToken(plainToken)
 
-	return s.txManager.WithinTransaction(ctx, func(tx TxStorage) error {
+	var activatedUserID int64
+	err := s.txManager.WithinTransaction(ctx, func(tx TxStorage) error {
 		invitation, err := tx.Invitations.GetByTokenHash(ctx, tokenHash)
 		if err != nil {
 			return err
@@ -203,8 +243,23 @@ func (s *UserService) ActivateUser(ctx context.Context, plainToken string) error
 			return err
 		}
 
-		return tx.Invitations.DeleteByUserID(ctx, invitation.UserID)
+		if err := tx.Invitations.DeleteByUserID(ctx, invitation.UserID); err != nil {
+			return err
+		}
+
+		activatedUserID = invitation.UserID
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Invalidate cached user upon successful activation
+	if s.cache != nil && activatedUserID > 0 {
+		_ = s.cache.Delete(ctx, activatedUserID)
+	}
+
+	return nil
 }
 
 // FollowUser coordinates self-follow validation and delegates relation creation to FollowerRepository.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	goredis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"go-learning/docs"
@@ -19,6 +20,7 @@ import (
 	"go-learning/internal/logic"
 	"go-learning/internal/mailer"
 	"go-learning/internal/repository"
+	cacheRedis "go-learning/internal/repository/redis"
 )
 
 // DBConfig holds PostgreSQL connection pool configuration.
@@ -41,6 +43,15 @@ type AuthConfig struct {
 	JWTTTL      time.Duration
 }
 
+// RedisConfig holds Redis cache configuration.
+type RedisConfig struct {
+	Enabled      bool
+	Addr         string
+	Password     string
+	DB           int
+	UserCacheTTL time.Duration
+}
+
 // Config holds runtime configuration parameters for the application.
 type Config struct {
 	Addr         string
@@ -49,6 +60,7 @@ type Config struct {
 	IdleTimeout  time.Duration
 	DB           DBConfig
 	Auth         AuthConfig
+	Redis        RedisConfig
 }
 
 // Application holds runtime dependencies and application lifecycle methods.
@@ -190,6 +202,13 @@ func main() {
 			JWTAudience: env.GetString("JWT_AUDIENCE", "golearning-users"),
 			JWTTTL:      time.Duration(env.GetInt("JWT_TTL_MINUTES", 60)) * time.Minute,
 		},
+		Redis: RedisConfig{
+			Enabled:      env.GetBool("REDIS_ENABLED", false),
+			Addr:         env.GetString("REDIS_ADDR", "localhost:6379"),
+			Password:     env.GetString("REDIS_PASSWORD", ""),
+			DB:           env.GetInt("REDIS_DB", 0),
+			UserCacheTTL: env.GetDuration("CACHE_USER_TTL", 15*time.Minute),
+		},
 	}
 
 	if appEnv == "production" {
@@ -234,7 +253,7 @@ func main() {
 	queries := generated.New(pool)
 	storage := repository.NewPostgresStorage(pool, queries)
 
-	// 5. Initialize authenticators, mailer and logic services
+	// 5. Initialize authenticators, mailer, optional redis cache, and logic services
 	jwtAuth, err := authenticator.NewJWTAuthenticator(
 		cfg.Auth.JWTSecret,
 		cfg.Auth.JWTIssuer,
@@ -243,6 +262,39 @@ func main() {
 	)
 	if err != nil {
 		logger.Fatalw("failed to initialize jwt authenticator", "error", err)
+	}
+
+	var userCache logic.UserCache
+	if cfg.Redis.Enabled {
+		rdb := goredis.NewClient(&goredis.Options{
+			Addr:         cfg.Redis.Addr,
+			Password:     cfg.Redis.Password,
+			DB:           cfg.Redis.DB,
+			DialTimeout:  2 * time.Second,
+			ReadTimeout:  150 * time.Millisecond,
+			WriteTimeout: 150 * time.Millisecond,
+		})
+
+		pingCtx, pingCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		if err := rdb.Ping(pingCtx).Err(); err != nil {
+			pingCancel()
+			logger.Warnw("failed to connect to redis, caching will be disabled",
+				"addr", cfg.Redis.Addr,
+				"error", err,
+			)
+			_ = rdb.Close()
+		} else {
+			pingCancel()
+			logger.Infow("connected to redis cache",
+				"addr", cfg.Redis.Addr,
+				"db", cfg.Redis.DB,
+				"user_ttl", cfg.Redis.UserCacheTTL,
+			)
+			userCache = cacheRedis.NewUserCache(rdb, logger)
+			defer rdb.Close()
+		}
+	} else {
+		logger.Infow("redis cache is disabled (REDIS_ENABLED=false)")
 	}
 
 	devMailer := mailer.NewDevMailer()
@@ -255,6 +307,9 @@ func main() {
 		cfg.Auth.TokenExpiry,
 		jwtAuth,
 	)
+	if userCache != nil {
+		userService.WithCache(userCache, cfg.Redis.UserCacheTTL)
+	}
 	truckService := logic.NewTruckService(storage.Trucks)
 	postService := logic.NewPostService(storage.Posts, storage.Comments)
 	feedService := logic.NewFeedService(storage.Feed)

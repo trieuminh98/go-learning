@@ -127,10 +127,10 @@ func TimeoutMiddleware(timeout time.Duration) func(http.Handler) http.Handler {
 
 // JWTAuthMiddleware enforces inbound Bearer JWT authentication for protected route groups.
 // It verifies token signature and standard claims via logic.Authenticator, hydrates the active user
-// from logic.UserRepository, and attaches the user to request context.
+// from a logic.UserGetter (such as *logic.UserService or logic.UserRepository), and attaches the user to request context.
 // Any failure (missing header, bad format, invalid token, non-existent or inactive user)
 // returns a generic 401 Unauthorized JSON response to prevent information leakage.
-func JWTAuthMiddleware(auth logic.Authenticator, userRepo logic.UserRepository) func(http.Handler) http.Handler {
+func JWTAuthMiddleware(auth logic.Authenticator, userGetter logic.UserGetter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -157,7 +157,7 @@ func JWTAuthMiddleware(auth logic.Authenticator, userRepo logic.UserRepository) 
 				return
 			}
 
-			user, err := userRepo.GetByID(r.Context(), userID)
+			user, err := userGetter.GetByID(r.Context(), userID)
 			if err != nil {
 				unauthorizedJWT(w)
 				return

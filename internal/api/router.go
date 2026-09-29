@@ -38,7 +38,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	}
 
 	basicAuthMiddleware := gateway.BasicAuthMiddleware(cfg.BasicAuthUser, cfg.BasicAuthPass)
-	jwtAuthMiddleware := gateway.JWTAuthMiddleware(cfg.Authenticator, cfg.UserRepo)
+	var userProvider logic.UserGetter = cfg.UserService
+	if userProvider == nil {
+		userProvider = cfg.UserRepo
+	}
+	jwtAuthMiddleware := gateway.JWTAuthMiddleware(cfg.Authenticator, userProvider)
 
 	userHandler := NewUserHandler(cfg.UserService, cfg.Validator)
 	truckHandler := NewTruckHandler(cfg.TruckService)
