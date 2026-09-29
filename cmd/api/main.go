@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -54,13 +58,14 @@ type RedisConfig struct {
 
 // Config holds runtime configuration parameters for the application.
 type Config struct {
-	Addr         string
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
-	IdleTimeout  time.Duration
-	DB           DBConfig
-	Auth         AuthConfig
-	Redis        RedisConfig
+	Addr            string
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	IdleTimeout     time.Duration
+	ShutdownTimeout time.Duration
+	DB              DBConfig
+	Auth            AuthConfig
+	Redis           RedisConfig
 }
 
 // Application holds runtime dependencies and application lifecycle methods.
@@ -123,6 +128,8 @@ func (app *Application) routes() http.Handler {
 }
 
 // run configures and starts the HTTP server.
+// run configures, starts the HTTP server in a background goroutine,
+// and orchestrates graceful shutdown upon receiving SIGINT or SIGTERM.
 func (app *Application) run() error {
 	srv := &http.Server{
 		Addr:         app.config.Addr,
@@ -132,16 +139,58 @@ func (app *Application) run() error {
 		IdleTimeout:  app.config.IdleTimeout,
 	}
 
-	app.logger.Infow("server listening",
-		"addr", srv.Addr,
-		"read_timeout", srv.ReadTimeout,
-		"write_timeout", srv.WriteTimeout,
-		"idle_timeout", srv.IdleTimeout,
-	)
+	// 1. Channel to capture startup or runtime errors from the HTTP server
+	serverErrors := make(chan error, 1)
 
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
+	// 2. Start the HTTP server in a background goroutine
+	go func() {
+		app.logger.Infow("server listening",
+			"addr", srv.Addr,
+			"read_timeout", srv.ReadTimeout,
+			"write_timeout", srv.WriteTimeout,
+			"idle_timeout", srv.IdleTimeout,
+			"shutdown_timeout", app.config.ShutdownTimeout,
+		)
+
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErrors <- err
+		}
+	}()
+
+	// 3. Channel to listen for OS termination signals (SIGINT, SIGTERM)
+	shutdownSignal := make(chan os.Signal, 1)
+	signal.Notify(shutdownSignal, os.Interrupt, syscall.SIGTERM)
+
+	// 4. Block waiting for either a fatal server error or an OS termination signal
+	select {
+	case err := <-serverErrors:
+		return fmt.Errorf("server startup/runtime error: %w", err)
+
+	case sig := <-shutdownSignal:
+		app.logger.Infow("termination signal received, initiating graceful shutdown",
+			"signal", sig.String(),
+			"shutdown_timeout", app.config.ShutdownTimeout,
+		)
+
+		// Create a bounded deadline context for graceful shutdown
+		ctx, cancel := context.WithTimeout(context.Background(), app.config.ShutdownTimeout)
+		defer cancel()
+
+		if err := srv.Shutdown(ctx); err != nil {
+			app.logger.Errorw("graceful shutdown failed, forcing server closure",
+				"error", err,
+			)
+			if closeErr := srv.Close(); closeErr != nil {
+				return fmt.Errorf("could not stop server gracefully: %w (force close: %v)", err, closeErr)
+			}
+			return fmt.Errorf("could not stop server gracefully: %w", err)
+		}
+
+		app.logger.Infow("graceful shutdown completed successfully",
+			"addr", srv.Addr,
+		)
 	}
+
 	return nil
 }
 
@@ -182,10 +231,11 @@ func main() {
 
 	// 2. Load runtime configuration
 	cfg := Config{
-		Addr:         env.GetString("SERVER_ADDR", ":8080"),
-		ReadTimeout:  time.Duration(env.GetInt("SERVER_READ_TIMEOUT_SECONDS", 5)) * time.Second,
-		WriteTimeout: time.Duration(env.GetInt("SERVER_WRITE_TIMEOUT_SECONDS", 10)) * time.Second,
-		IdleTimeout:  time.Duration(env.GetInt("SERVER_IDLE_TIMEOUT_SECONDS", 120)) * time.Second,
+		Addr:            env.GetString("SERVER_ADDR", ":8080"),
+		ReadTimeout:     time.Duration(env.GetInt("SERVER_READ_TIMEOUT_SECONDS", 5)) * time.Second,
+		WriteTimeout:    time.Duration(env.GetInt("SERVER_WRITE_TIMEOUT_SECONDS", 10)) * time.Second,
+		IdleTimeout:     time.Duration(env.GetInt("SERVER_IDLE_TIMEOUT_SECONDS", 120)) * time.Second,
+		ShutdownTimeout: time.Duration(env.GetInt("SHUTDOWN_TIMEOUT_SECONDS", 5)) * time.Second,
 		DB: DBConfig{
 			URL:         env.GetString("DB_URL", "postgres://postgres:password@localhost:5433/golearning?sslmode=disable"),
 			MaxConns:    int32(env.GetInt("DB_MAX_CONNS", 10)),

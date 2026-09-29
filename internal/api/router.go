@@ -69,6 +69,14 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			tooling.Get("/debug/panic", func(w http.ResponseWriter, r *http.Request) {
 				panic("deliberate test panic for recovery middleware verification")
 			})
+			tooling.Get("/debug/slow", func(w http.ResponseWriter, r *http.Request) {
+				// Deliberately delay response to simulate in-flight request during graceful shutdown test
+				time.Sleep(3 * time.Second)
+				_ = jsonResponse(w, http.StatusOK, map[string]string{
+					"status":  "completed",
+					"message": "request finished after artificial delay",
+				})
+			})
 		})
 
 		// Public route group: no authentication required
