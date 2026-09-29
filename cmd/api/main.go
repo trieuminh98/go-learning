@@ -60,6 +60,7 @@ type Application struct {
 	feedService   *logic.FeedService
 	authenticator logic.Authenticator
 	userRepo      logic.UserRepository
+	roleRepo      logic.RoleRepository
 	validator     *validator.Validate
 	logger        *zap.SugaredLogger
 }
@@ -73,6 +74,7 @@ func NewApplication(
 	feedService *logic.FeedService,
 	authenticator logic.Authenticator,
 	userRepo logic.UserRepository,
+	roleRepo logic.RoleRepository,
 	validator *validator.Validate,
 	logger *zap.SugaredLogger,
 ) *Application {
@@ -84,6 +86,7 @@ func NewApplication(
 		feedService:   feedService,
 		authenticator: authenticator,
 		userRepo:      userRepo,
+		roleRepo:      roleRepo,
 		validator:     validator,
 		logger:        logger,
 	}
@@ -103,6 +106,7 @@ func (app *Application) routes() http.Handler {
 		BasicAuthPass: app.config.Auth.BasicPass,
 		Authenticator: app.authenticator,
 		UserRepo:      app.userRepo,
+		RoleRepo:      app.roleRepo,
 	})
 }
 
@@ -259,7 +263,7 @@ func main() {
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
 	// 7. Instantiate Application composition root
-	app := NewApplication(cfg, userService, truckService, postService, feedService, jwtAuth, storage.Users, validate, logger)
+	app := NewApplication(cfg, userService, truckService, postService, feedService, jwtAuth, storage.Users, storage.Roles, validate, logger)
 
 	// 8. Start server
 	if err := app.run(); err != nil {

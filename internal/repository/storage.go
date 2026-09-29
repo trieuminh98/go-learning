@@ -14,6 +14,7 @@ import (
 // consumer layers to repositories they do not need.
 type Storage struct {
 	Users       logic.UserRepository
+	Roles       logic.RoleRepository
 	Trucks      logic.TruckRepository
 	Posts       logic.PostRepository
 	Comments    logic.CommentRepository
@@ -26,6 +27,7 @@ type Storage struct {
 // NewStorage initializes and bundles concrete in-memory repository implementations.
 func NewStorage() Storage {
 	users := memory.NewUserRepository()
+	roles := memory.NewRoleRepository()
 	trucks := memory.NewTruckRepository()
 	posts := memory.NewPostRepository()
 	comments := memory.NewCommentRepository()
@@ -36,6 +38,7 @@ func NewStorage() Storage {
 
 	return Storage{
 		Users:       users,
+		Roles:       roles,
 		Trucks:      trucks,
 		Posts:       posts,
 		Comments:    comments,
@@ -50,6 +53,7 @@ func NewStorage() Storage {
 func NewPostgresStorage(pool *pgxpool.Pool, queries *db.Queries) Storage {
 	return Storage{
 		Users:       postgres.NewUserRepository(queries),
+		Roles:       postgres.NewRoleRepository(queries),
 		Trucks:      postgres.NewTruckRepository(queries),
 		Posts:       postgres.NewPostRepository(queries),
 		Comments:    postgres.NewCommentRepository(queries),

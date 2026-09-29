@@ -25,6 +25,7 @@ type RouterConfig struct {
 	BasicAuthPass string
 	Authenticator logic.Authenticator
 	UserRepo      logic.UserRepository
+	RoleRepo      logic.RoleRepository
 }
 
 // NewRouter builds and returns the application HTTP handler using Chi.
@@ -41,7 +42,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	userHandler := NewUserHandler(cfg.UserService, cfg.Validator)
 	truckHandler := NewTruckHandler(cfg.TruckService)
-	postHandler := NewPostHandler(cfg.PostService, cfg.Validator)
+	postHandler := NewPostHandler(cfg.PostService, cfg.Validator, cfg.RoleRepo)
 	feedHandler := NewFeedHandler(cfg.FeedService)
 
 	// 1. Gateway global cross-cutting middleware stack
@@ -100,8 +101,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			private.Get("/posts", postHandler.ListPosts)
 			private.Post("/posts", postHandler.CreatePost)
 			private.Get("/posts/{postID}", postHandler.GetPost)
-			private.Delete("/posts/{postID}", postHandler.DeletePost)
-			private.With(postHandler.PostContextMiddleware).Patch("/posts/{postID}", postHandler.UpdatePost)
+			private.With(postHandler.PostContextMiddleware, postHandler.AuthorizePost("moderator")).Patch("/posts/{postID}", postHandler.UpdatePost)
+			private.With(postHandler.PostContextMiddleware, postHandler.AuthorizePost("admin")).Delete("/posts/{postID}", postHandler.DeletePost)
 
 			// Feed resources
 			private.Get("/feed", feedHandler.GetFeed)

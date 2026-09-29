@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -165,13 +166,15 @@ func toPostDetailResponse(detail core.PostDetail) PostDetailResponse {
 type PostHandler struct {
 	service   *logic.PostService
 	validator *validator.Validate
+	roleRepo  logic.RoleRepository
 }
 
 // NewPostHandler creates a new PostHandler.
-func NewPostHandler(service *logic.PostService, validator *validator.Validate) *PostHandler {
+func NewPostHandler(service *logic.PostService, validator *validator.Validate, roleRepo logic.RoleRepository) *PostHandler {
 	return &PostHandler{
 		service:   service,
 		validator: validator,
+		roleRepo:  roleRepo,
 	}
 }
 
@@ -300,6 +303,49 @@ func (h *PostHandler) PostContextMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// AuthorizePost enforces authorization on mutations for a specific post.
+// The policy allows access if the authenticated actor is the post owner (ownership-first)
+// OR if the actor's role level meets or exceeds the required role level (role-fallback).
+// If unauthorized, it returns 403 Forbidden.
+func (h *PostHandler) AuthorizePost(requiredRole string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			currentUser, ok := gateway.UserFromContext(r.Context())
+			if !ok {
+				unauthorized(w, r, "unauthorized")
+				return
+			}
+
+			post, ok := PostFromContext(r.Context())
+			if !ok {
+				internalServerError(w, r, errors.New("post missing from request context"))
+				return
+			}
+
+			// 1. Ownership rule: owner always passes first
+			currentUserID, err := strconv.ParseInt(currentUser.ID, 10, 64)
+			if err == nil && currentUserID > 0 && currentUserID == post.UserID {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// 2. Role-fallback rule: role level >= required role level
+			reqRole, err := h.roleRepo.GetByName(r.Context(), requiredRole)
+			if err != nil {
+				internalServerError(w, r, fmt.Errorf("failed to resolve required role %q: %w", requiredRole, err))
+				return
+			}
+
+			if currentUser.Role.Level >= reqRole.Level {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			forbidden(w, r)
+		})
+	}
+}
+
 // UpdatePost handles PATCH /v1/posts/{postID}.
 // Reads the already-resolved post from context and applies only present fields.
 //
@@ -314,6 +360,7 @@ func (h *PostHandler) PostContextMiddleware(next http.Handler) http.Handler {
 //	@Success		200		{object}	PostEnvelope
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		409		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
@@ -358,7 +405,7 @@ func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeletePost handles DELETE /v1/posts/{postID}.
-// Directly deletes the post and checks affected rows without pre-fetching SELECT.
+// Reads the already-resolved and authorized post from context and deletes it.
 //
 //	@Summary		Delete post
 //	@Description	Delete an existing post by its ID
@@ -368,17 +415,18 @@ func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 //	@Success		204		"No Content"
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/posts/{postID} [delete]
 func (h *PostHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
-	postID, err := readIDParam(r, "postID")
-	if err != nil {
-		badRequest(w, r, err)
+	post, ok := PostFromContext(r.Context())
+	if !ok {
+		internalServerError(w, r, errors.New("post missing from request context"))
 		return
 	}
 
-	if err := h.service.DeletePost(r.Context(), postID); err != nil {
+	if err := h.service.DeletePost(r.Context(), post.ID); err != nil {
 		MapDomainErrorToHTTP(w, r, err)
 		return
 	}

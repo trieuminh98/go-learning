@@ -112,6 +112,21 @@ func unauthorized(w http.ResponseWriter, r *http.Request, message string) {
 	writeJSONError(w, http.StatusUnauthorized, message)
 }
 
+// forbidden sends a 403 Forbidden response when the authenticated actor lacks sufficient privileges.
+func forbidden(w http.ResponseWriter, r *http.Request, message ...string) {
+	msg := "forbidden"
+	if len(message) > 0 && message[0] != "" {
+		msg = message[0]
+	}
+
+	if apiLogger != nil {
+		fields := extractLogFields(r, errors.New(msg))
+		apiLogger.Warnw("forbidden", fields...)
+	}
+
+	writeJSONError(w, http.StatusForbidden, msg)
+}
+
 // MapDomainErrorToHTTP maps domain errors from internal/core to standardized HTTP status codes and responses.
 func MapDomainErrorToHTTP(w http.ResponseWriter, r *http.Request, err error) {
 	switch {

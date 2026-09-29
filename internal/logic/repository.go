@@ -18,6 +18,11 @@ type UserRepository interface {
 	Delete(ctx context.Context, id int64) error
 }
 
+// RoleRepository defines the persistence contract for querying system and user roles.
+type RoleRepository interface {
+	GetByName(ctx context.Context, name string) (core.Role, error)
+}
+
 // InvitationRepository defines the persistence contract for user activation / invitation tokens.
 type InvitationRepository interface {
 	Create(ctx context.Context, invitation core.Invitation) error

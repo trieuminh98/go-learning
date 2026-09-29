@@ -26,4 +26,5 @@ var (
 	ErrConflict            = errors.New("conflict: resource was modified concurrently")
 	ErrCannotFollowSelf    = errors.New("cannot follow self")
 	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrRoleNotFound        = errors.New("role not found")
 )
