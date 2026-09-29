@@ -65,11 +65,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 		// Public route group: no authentication required
 		v1.Group(func(public chi.Router) {
-			// Authentication / Registration / Activation
+			// Authentication / Registration / Activation / Token
 			public.Route("/authentication", func(auth chi.Router) {
 				auth.Post("/user", userHandler.RegisterUser)
 				auth.Put("/users/activate/{token}", userHandler.ActivateUser)
 				auth.Put("/user/activate/{token}", userHandler.ActivateUser)
+				auth.Post("/token", userHandler.CreateToken)
 			})
 		})
 

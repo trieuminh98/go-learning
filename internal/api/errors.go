@@ -139,6 +139,9 @@ func MapDomainErrorToHTTP(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, core.ErrPostNotFound):
 		notFound(w, r, err.Error())
 
+	case errors.Is(err, core.ErrInvalidCredentials):
+		unauthorized(w, r, "invalid credentials")
+
 	default:
 		internalServerError(w, r, fmt.Errorf("unmapped domain error: %w", err))
 	}

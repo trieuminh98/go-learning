@@ -40,6 +40,22 @@ type RegisterUserRequest struct {
 	Password  string `json:"password" validate:"required,min=8,max=72"`
 }
 
+// CreateTokenRequest is the DTO for incoming user authentication payload.
+type CreateTokenRequest struct {
+	Email    string `json:"email" validate:"required,email,max=255"`
+	Password string `json:"password" validate:"required,min=8,max=72"`
+}
+
+// TokenResponse is the DTO for outgoing JWT token response.
+type TokenResponse struct {
+	Token string `json:"token"`
+}
+
+// TokenEnvelope defines the standard API success envelope for token endpoints.
+type TokenEnvelope struct {
+	Data TokenResponse `json:"data"`
+}
+
 // UserResponse is the DTO for outgoing user JSON serialization.
 type UserResponse struct {
 	ID        string `json:"id"`
@@ -308,4 +324,41 @@ func (h *UserHandler) ActivateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// CreateToken handles POST /v1/authentication/token.
+//
+//	@Summary		Create authentication token
+//	@Description	Exchange valid user credentials for a signed, short-lived JWT token
+//	@Tags			authentication
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		CreateTokenRequest	true	"Authentication credentials"
+//	@Success		200		{object}	TokenEnvelope
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/authentication/token [post]
+func (h *UserHandler) CreateToken(w http.ResponseWriter, r *http.Request) {
+	var input CreateTokenRequest
+
+	if err := readJSON(w, r, &input); err != nil {
+		badRequest(w, r, err)
+		return
+	}
+
+	if h.validator != nil {
+		if err := h.validator.Struct(input); err != nil {
+			badRequest(w, r, err)
+			return
+		}
+	}
+
+	token, err := h.service.AuthenticateUser(r.Context(), input.Email, input.Password)
+	if err != nil {
+		MapDomainErrorToHTTP(w, r, err)
+		return
+	}
+
+	_ = jsonResponse(w, http.StatusOK, TokenResponse{Token: token})
 }

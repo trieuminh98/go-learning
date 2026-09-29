@@ -12,6 +12,7 @@ import (
 
 	"go-learning/docs"
 	"go-learning/internal/api"
+	"go-learning/internal/authenticator"
 	"go-learning/internal/db"
 	generated "go-learning/internal/db/generated"
 	"go-learning/internal/env"
@@ -34,6 +35,10 @@ type AuthConfig struct {
 	TokenExpiry time.Duration
 	BasicUser   string
 	BasicPass   string
+	JWTSecret   string
+	JWTIssuer   string
+	JWTAudience string
+	JWTTTL      time.Duration
 }
 
 // Config holds runtime configuration parameters for the application.
@@ -168,11 +173,20 @@ func main() {
 			TokenExpiry: time.Duration(env.GetInt("AUTH_TOKEN_EXPIRATION_HOURS", 72)) * time.Hour,
 			BasicUser:   env.GetString("AUTH_BASIC_USER", "admin"),
 			BasicPass:   env.GetString("AUTH_BASIC_PASS", "admin"),
+			JWTSecret:   env.GetString("JWT_SECRET", "0123456789abcdef0123456789abcdef"),
+			JWTIssuer:   env.GetString("JWT_ISSUER", "golearning"),
+			JWTAudience: env.GetString("JWT_AUDIENCE", "golearning-users"),
+			JWTTTL:      time.Duration(env.GetInt("JWT_TTL_MINUTES", 60)) * time.Minute,
 		},
 	}
 
-	if appEnv == "production" && cfg.Auth.BasicUser == "admin" && cfg.Auth.BasicPass == "admin" {
-		logger.Warnw("using default basic auth credentials in production environment is insecure")
+	if appEnv == "production" {
+		if cfg.Auth.BasicUser == "admin" && cfg.Auth.BasicPass == "admin" {
+			logger.Warnw("using default basic auth credentials in production environment is insecure")
+		}
+		if cfg.Auth.JWTSecret == "0123456789abcdef0123456789abcdef" {
+			logger.Fatalw("cannot use default jwt secret in production environment")
+		}
 	}
 
 	// Configure Swagger host dynamically from runtime environment
@@ -208,7 +222,17 @@ func main() {
 	queries := generated.New(pool)
 	storage := repository.NewPostgresStorage(pool, queries)
 
-	// 5. Initialize mailer and logic services
+	// 5. Initialize authenticators, mailer and logic services
+	jwtAuth, err := authenticator.NewJWTAuthenticator(
+		cfg.Auth.JWTSecret,
+		cfg.Auth.JWTIssuer,
+		cfg.Auth.JWTAudience,
+		cfg.Auth.JWTTTL,
+	)
+	if err != nil {
+		logger.Fatalw("failed to initialize jwt authenticator", "error", err)
+	}
+
 	devMailer := mailer.NewDevMailer()
 	userService := logic.NewUserService(
 		storage.Users,
@@ -217,6 +241,7 @@ func main() {
 		storage.TxManager,
 		devMailer,
 		cfg.Auth.TokenExpiry,
+		jwtAuth,
 	)
 	truckService := logic.NewTruckService(storage.Trucks)
 	postService := logic.NewPostService(storage.Posts, storage.Comments)

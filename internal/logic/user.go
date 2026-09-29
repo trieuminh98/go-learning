@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"go-learning/internal/core"
 )
 
@@ -19,14 +21,15 @@ type RegisterUserInput struct {
 }
 
 // UserService orchestrates user use-cases using UserRepository, FollowerRepository,
-// InvitationRepository, TransactionManager, and Mailer.
+// InvitationRepository, TransactionManager, Mailer, and Authenticator.
 type UserService struct {
-	repo         UserRepository
-	followerRepo FollowerRepository
-	invRepo      InvitationRepository
-	txManager    TransactionManager
-	mailer       Mailer
-	tokenExpiry  time.Duration
+	repo          UserRepository
+	followerRepo  FollowerRepository
+	invRepo       InvitationRepository
+	txManager     TransactionManager
+	mailer        Mailer
+	tokenExpiry   time.Duration
+	authenticator Authenticator
 }
 
 // NewUserService constructs a UserService with its required dependencies.
@@ -37,17 +40,19 @@ func NewUserService(
 	txManager TransactionManager,
 	mailer Mailer,
 	tokenExpiry time.Duration,
+	authenticator Authenticator,
 ) *UserService {
 	if tokenExpiry <= 0 {
 		tokenExpiry = 72 * time.Hour
 	}
 	return &UserService{
-		repo:         repo,
-		followerRepo: followerRepo,
-		invRepo:      invRepo,
-		txManager:    txManager,
-		mailer:       mailer,
-		tokenExpiry:  tokenExpiry,
+		repo:          repo,
+		followerRepo:  followerRepo,
+		invRepo:       invRepo,
+		txManager:     txManager,
+		mailer:        mailer,
+		tokenExpiry:   tokenExpiry,
+		authenticator: authenticator,
 	}
 }
 
@@ -216,4 +221,38 @@ func (s *UserService) UnfollowUser(ctx context.Context, followerID, followedUser
 		return core.ErrCannotFollowSelf
 	}
 	return s.followerRepo.Unfollow(ctx, followerID, followedUserID)
+}
+
+// dummyBcryptHash is a valid precomputed cost-12 bcrypt hash used to neutralize timing attacks
+// when authenticating non-existent or inactive user accounts.
+var dummyBcryptHash = []byte("$2a$12$e8Yk2uUq/iH.c94r2JmZ/u9o16aE4iM6yO5S9Y7N6Q3M1Z5P8U1.")
+
+// AuthenticateUser verifies user credentials and issues a signed JWT token.
+// If the email does not exist or the user is inactive, a dummy bcrypt comparison is executed
+// to ensure uniform execution latency and prevent user enumeration.
+func (s *UserService) AuthenticateUser(ctx context.Context, email, password string) (string, error) {
+	email = strings.TrimSpace(strings.ToLower(email))
+	if email == "" || password == "" {
+		return "", core.ErrInvalidCredentials
+	}
+
+	user, err := s.repo.GetByEmail(ctx, email)
+	if err != nil || !user.IsActive {
+		_ = bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(password))
+		return "", core.ErrInvalidCredentials
+	}
+
+	match, err := user.Password.Matches(password)
+	if err != nil || !match {
+		return "", core.ErrInvalidCredentials
+	}
+
+	now := time.Now()
+	claims := TokenClaims{
+		UserID:    user.ID,
+		IssuedAt:  now,
+		NotBefore: now,
+	}
+
+	return s.authenticator.GenerateToken(claims)
 }

@@ -25,4 +25,5 @@ var (
 	ErrPostNotFound        = errors.New("post not found")
 	ErrConflict            = errors.New("conflict: resource was modified concurrently")
 	ErrCannotFollowSelf    = errors.New("cannot follow self")
+	ErrInvalidCredentials = errors.New("invalid credentials")
 )
