@@ -25,10 +25,15 @@ func (q *Queries) ActivateUser(ctx context.Context, id int64) error {
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     first_name,
-    last_name
+    last_name,
+    role_id
 )
-VALUES ($1, $2)
-RETURNING id, first_name, last_name, created_at
+VALUES (
+    $1,
+    $2,
+    (SELECT id FROM roles WHERE name = 'user')
+)
+RETURNING id, first_name, last_name, created_at, role_id
 `
 
 type CreateUserParams struct {
@@ -41,6 +46,7 @@ type CreateUserRow struct {
 	FirstName string             `json:"first_name"`
 	LastName  string             `json:"last_name"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	RoleID    int64              `json:"role_id"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
@@ -51,6 +57,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 		&i.FirstName,
 		&i.LastName,
 		&i.CreatedAt,
+		&i.RoleID,
 	)
 	return i, err
 }
@@ -61,10 +68,18 @@ INSERT INTO users (
     last_name,
     email,
     password_hash,
-    is_active
+    is_active,
+    role_id
 )
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, first_name, last_name, email, is_active, created_at
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    (SELECT id FROM roles WHERE name = 'user')
+)
+RETURNING id, first_name, last_name, email, is_active, created_at, role_id
 `
 
 type CreateUserWithCredentialsParams struct {
@@ -82,6 +97,7 @@ type CreateUserWithCredentialsRow struct {
 	Email     pgtype.Text        `json:"email"`
 	IsActive  bool               `json:"is_active"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	RoleID    int64              `json:"role_id"`
 }
 
 func (q *Queries) CreateUserWithCredentials(ctx context.Context, arg CreateUserWithCredentialsParams) (CreateUserWithCredentialsRow, error) {
@@ -100,6 +116,7 @@ func (q *Queries) CreateUserWithCredentials(ctx context.Context, arg CreateUserW
 		&i.Email,
 		&i.IsActive,
 		&i.CreatedAt,
+		&i.RoleID,
 	)
 	return i, err
 }
@@ -114,20 +131,54 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 	return err
 }
 
+const getRoleByName = `-- name: GetRoleByName :one
+SELECT id, name, level, description
+FROM roles
+WHERE name = $1
+`
+
+func (q *Queries) GetRoleByName(ctx context.Context, name string) (Role, error) {
+	row := q.db.QueryRow(ctx, getRoleByName, name)
+	var i Role
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Level,
+		&i.Description,
+	)
+	return i, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, first_name, last_name, email, password_hash, is_active, created_at
-FROM users
-WHERE email = $1
+SELECT
+    u.id,
+    u.first_name,
+    u.last_name,
+    u.email,
+    u.password_hash,
+    u.is_active,
+    u.created_at,
+    r.id AS role_id,
+    r.name AS role_name,
+    r.level AS role_level,
+    r.description AS role_description
+FROM users u
+JOIN roles r ON u.role_id = r.id
+WHERE u.email = $1
 `
 
 type GetUserByEmailRow struct {
-	ID           int64              `json:"id"`
-	FirstName    string             `json:"first_name"`
-	LastName     string             `json:"last_name"`
-	Email        pgtype.Text        `json:"email"`
-	PasswordHash []byte             `json:"password_hash"`
-	IsActive     bool               `json:"is_active"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	ID              int64              `json:"id"`
+	FirstName       string             `json:"first_name"`
+	LastName        string             `json:"last_name"`
+	Email           pgtype.Text        `json:"email"`
+	PasswordHash    []byte             `json:"password_hash"`
+	IsActive        bool               `json:"is_active"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	RoleID          int64              `json:"role_id"`
+	RoleName        string             `json:"role_name"`
+	RoleLevel       int32              `json:"role_level"`
+	RoleDescription pgtype.Text        `json:"role_description"`
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (GetUserByEmailRow, error) {
@@ -141,21 +192,42 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (GetUse
 		&i.PasswordHash,
 		&i.IsActive,
 		&i.CreatedAt,
+		&i.RoleID,
+		&i.RoleName,
+		&i.RoleLevel,
+		&i.RoleDescription,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, first_name, last_name, created_at
-FROM users
-WHERE id = $1
+SELECT
+    u.id,
+    u.first_name,
+    u.last_name,
+    u.email,
+    u.is_active,
+    u.created_at,
+    r.id AS role_id,
+    r.name AS role_name,
+    r.level AS role_level,
+    r.description AS role_description
+FROM users u
+JOIN roles r ON u.role_id = r.id
+WHERE u.id = $1
 `
 
 type GetUserByIDRow struct {
-	ID        int64              `json:"id"`
-	FirstName string             `json:"first_name"`
-	LastName  string             `json:"last_name"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID              int64              `json:"id"`
+	FirstName       string             `json:"first_name"`
+	LastName        string             `json:"last_name"`
+	Email           pgtype.Text        `json:"email"`
+	IsActive        bool               `json:"is_active"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	RoleID          int64              `json:"role_id"`
+	RoleName        string             `json:"role_name"`
+	RoleLevel       int32              `json:"role_level"`
+	RoleDescription pgtype.Text        `json:"role_description"`
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, error) {
@@ -165,22 +237,45 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 		&i.ID,
 		&i.FirstName,
 		&i.LastName,
+		&i.Email,
+		&i.IsActive,
 		&i.CreatedAt,
+		&i.RoleID,
+		&i.RoleName,
+		&i.RoleLevel,
+		&i.RoleDescription,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, first_name, last_name, created_at
-FROM users
-ORDER BY id ASC
+SELECT
+    u.id,
+    u.first_name,
+    u.last_name,
+    u.email,
+    u.is_active,
+    u.created_at,
+    r.id AS role_id,
+    r.name AS role_name,
+    r.level AS role_level,
+    r.description AS role_description
+FROM users u
+JOIN roles r ON u.role_id = r.id
+ORDER BY u.id ASC
 `
 
 type ListUsersRow struct {
-	ID        int64              `json:"id"`
-	FirstName string             `json:"first_name"`
-	LastName  string             `json:"last_name"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID              int64              `json:"id"`
+	FirstName       string             `json:"first_name"`
+	LastName        string             `json:"last_name"`
+	Email           pgtype.Text        `json:"email"`
+	IsActive        bool               `json:"is_active"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	RoleID          int64              `json:"role_id"`
+	RoleName        string             `json:"role_name"`
+	RoleLevel       int32              `json:"role_level"`
+	RoleDescription pgtype.Text        `json:"role_description"`
 }
 
 func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
@@ -196,7 +291,13 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 			&i.ID,
 			&i.FirstName,
 			&i.LastName,
+			&i.Email,
+			&i.IsActive,
 			&i.CreatedAt,
+			&i.RoleID,
+			&i.RoleName,
+			&i.RoleLevel,
+			&i.RoleDescription,
 		); err != nil {
 			return nil, err
 		}

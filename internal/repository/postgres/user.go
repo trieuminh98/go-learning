@@ -34,12 +34,25 @@ func NewUserRepository(queries *db.Queries) *UserRepository {
 	}
 }
 
-func toCoreUser(id int64, firstName, lastName string, email pgtype.Text, isActive bool) core.User {
+func toCoreRole(id int64, name string, level int32, description pgtype.Text) core.Role {
+	r := core.Role{
+		ID:    id,
+		Name:  name,
+		Level: int(level),
+	}
+	if description.Valid {
+		r.Description = description.String
+	}
+	return r
+}
+
+func toCoreUser(id int64, firstName, lastName string, email pgtype.Text, isActive bool, role core.Role) core.User {
 	u := core.User{
 		ID:        strconv.FormatInt(id, 10),
 		FirstName: firstName,
 		LastName:  lastName,
 		IsActive:  isActive,
+		Role:      role,
 	}
 	if email.Valid {
 		u.Email = email.String
@@ -56,7 +69,8 @@ func (r *UserRepository) List(ctx context.Context) ([]core.User, error) {
 
 	users := make([]core.User, len(rows))
 	for i, row := range rows {
-		users[i] = toCoreUser(row.ID, row.FirstName, row.LastName, pgtype.Text{}, false)
+		role := toCoreRole(row.RoleID, row.RoleName, row.RoleLevel, row.RoleDescription)
+		users[i] = toCoreUser(row.ID, row.FirstName, row.LastName, row.Email, row.IsActive, role)
 	}
 	return users, nil
 }
@@ -75,7 +89,8 @@ func (r *UserRepository) Create(ctx context.Context, u core.User) (core.User, er
 		return core.User{}, err
 	}
 
-	return toCoreUser(created.ID, created.FirstName, created.LastName, pgtype.Text{}, false), nil
+	role := core.Role{ID: created.RoleID, Name: "user", Level: 1}
+	return toCoreUser(created.ID, created.FirstName, created.LastName, pgtype.Text{}, false, role), nil
 }
 
 // CreateWithCredentials inserts a user with email, hashed password, and initial active status.
@@ -101,8 +116,8 @@ func (r *UserRepository) CreateWithCredentials(ctx context.Context, u core.User)
 		return core.User{}, err
 	}
 
-
-	res := toCoreUser(created.ID, created.FirstName, created.LastName, created.Email, created.IsActive)
+	role := core.Role{ID: created.RoleID, Name: "user", Level: 1}
+	res := toCoreUser(created.ID, created.FirstName, created.LastName, created.Email, created.IsActive, role)
 	res.Password = u.Password
 	return res, nil
 }
@@ -120,7 +135,8 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (core.User, erro
 		return core.User{}, err
 	}
 
-	return toCoreUser(user.ID, user.FirstName, user.LastName, pgtype.Text{}, false), nil
+	role := toCoreRole(user.RoleID, user.RoleName, user.RoleLevel, user.RoleDescription)
+	return toCoreUser(user.ID, user.FirstName, user.LastName, user.Email, user.IsActive, role), nil
 }
 
 // GetByEmail fetches a user by their email address from PostgreSQL.
@@ -136,7 +152,8 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (core.Use
 		return core.User{}, err
 	}
 
-	res := toCoreUser(user.ID, user.FirstName, user.LastName, user.Email, user.IsActive)
+	role := toCoreRole(user.RoleID, user.RoleName, user.RoleLevel, user.RoleDescription)
+	res := toCoreUser(user.ID, user.FirstName, user.LastName, user.Email, user.IsActive, role)
 	res.Password = core.NewPasswordFromHash(user.PasswordHash)
 	return res, nil
 }

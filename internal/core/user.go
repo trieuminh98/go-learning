@@ -50,6 +50,14 @@ func NewPasswordFromHash(hash []byte) Password {
 	return Password{hash: hash}
 }
 
+// Role represents a system role assigned to a user for role-based authorization.
+type Role struct {
+	ID          int64
+	Name        string
+	Level       int
+	Description string
+}
+
 // User represents the pure domain entity for a user.
 // Invariants and domain logic live here.
 // Notice: No JSON struct tags or HTTP concepts belong in the Core layer.
@@ -60,6 +68,7 @@ type User struct {
 	Email     string
 	Password  Password
 	IsActive  bool
+	Role      Role
 }
 
 // Validate checks domain rules for User.

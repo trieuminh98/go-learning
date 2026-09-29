@@ -33,6 +33,13 @@ type Post struct {
 	Version   int32              `json:"version"`
 }
 
+type Role struct {
+	ID          int64       `json:"id"`
+	Name        string      `json:"name"`
+	Level       int32       `json:"level"`
+	Description pgtype.Text `json:"description"`
+}
+
 type Truck struct {
 	ID          string             `json:"id"`
 	Capacity    int32              `json:"capacity"`
@@ -48,6 +55,7 @@ type User struct {
 	Email        pgtype.Text        `json:"email"`
 	PasswordHash []byte             `json:"password_hash"`
 	IsActive     bool               `json:"is_active"`
+	RoleID       int64              `json:"role_id"`
 }
 
 type UserInvitation struct {

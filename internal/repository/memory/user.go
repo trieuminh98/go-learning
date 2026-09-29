@@ -66,6 +66,14 @@ func (r *UserRepository) Create(ctx context.Context, u core.User) (core.User, er
 
 	r.userSeq++
 	u.ID = fmt.Sprintf("%d", r.userSeq)
+	if u.Role.Name == "" {
+		u.Role = core.Role{
+			ID:          1,
+			Name:        "user",
+			Level:       1,
+			Description: "Default user role with standard permissions",
+		}
+	}
 	r.users[u.ID] = u
 
 	return u, nil
@@ -91,6 +99,14 @@ func (r *UserRepository) CreateWithCredentials(ctx context.Context, u core.User)
 
 	r.userSeq++
 	u.ID = fmt.Sprintf("%d", r.userSeq)
+	if u.Role.Name == "" {
+		u.Role = core.Role{
+			ID:          1,
+			Name:        "user",
+			Level:       1,
+			Description: "Default user role with standard permissions",
+		}
+	}
 	r.users[u.ID] = u
 
 	return u, nil
