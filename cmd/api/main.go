@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
@@ -72,6 +73,7 @@ type CORSConfig struct {
 // Config holds runtime configuration parameters for the application.
 type Config struct {
 	Addr            string
+	Version         string
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	IdleTimeout     time.Duration
@@ -86,6 +88,7 @@ type Config struct {
 // Application holds runtime dependencies and application lifecycle methods.
 type Application struct {
 	config        Config
+	dbPool        *pgxpool.Pool
 	userService   *logic.UserService
 	truckService  *logic.TruckService
 	postService   *logic.PostService
@@ -101,6 +104,7 @@ type Application struct {
 // NewApplication constructs the Application root with injected dependencies.
 func NewApplication(
 	cfg Config,
+	dbPool *pgxpool.Pool,
 	userService *logic.UserService,
 	truckService *logic.TruckService,
 	postService *logic.PostService,
@@ -114,6 +118,7 @@ func NewApplication(
 ) *Application {
 	return &Application{
 		config:        cfg,
+		dbPool:        dbPool,
 		userService:   userService,
 		truckService:  truckService,
 		postService:   postService,
@@ -144,6 +149,8 @@ func (app *Application) routes() http.Handler {
 		RoleRepo:      app.roleRepo,
 		RateLimiter:   app.rateLimiter,
 		CORSOrigins:   app.config.CORS.AllowedOrigins,
+		DBPool:        app.dbPool,
+		AppVersion:    app.config.Version,
 	})
 }
 
@@ -252,6 +259,7 @@ func main() {
 	// 2. Load runtime configuration
 	cfg := Config{
 		Addr:            env.GetString("SERVER_ADDR", ":8080"),
+		Version:         env.GetString("APP_VERSION", "1.0.0"),
 		ReadTimeout:     time.Duration(env.GetInt("SERVER_READ_TIMEOUT_SECONDS", 5)) * time.Second,
 		WriteTimeout:    time.Duration(env.GetInt("SERVER_WRITE_TIMEOUT_SECONDS", 10)) * time.Second,
 		IdleTimeout:     time.Duration(env.GetInt("SERVER_IDLE_TIMEOUT_SECONDS", 120)) * time.Second,
@@ -419,7 +427,7 @@ func main() {
 	}
 
 	// 8. Instantiate Application composition root
-	app := NewApplication(cfg, userService, truckService, postService, feedService, jwtAuth, storage.Users, storage.Roles, rateLimiter, validate, logger)
+	app := NewApplication(cfg, pool, userService, truckService, postService, feedService, jwtAuth, storage.Users, storage.Roles, rateLimiter, validate, logger)
 
 	// 9. Start server
 	if err := app.run(); err != nil {

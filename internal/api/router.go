@@ -1,12 +1,14 @@
 package api
 
 import (
+	"expvar"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/go-playground/validator/v10"
+	"github.com/jackc/pgx/v5/pgxpool"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.uber.org/zap"
 
@@ -29,6 +31,8 @@ type RouterConfig struct {
 	RoleRepo      logic.RoleRepository
 	RateLimiter   gateway.RateLimiter
 	CORSOrigins   []string
+	DBPool        *pgxpool.Pool
+	AppVersion    string
 }
 
 // NewRouter builds and returns the application HTTP handler using Chi.
@@ -39,6 +43,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	if cfg.Logger != nil {
 		SetLogger(cfg.Logger)
 	}
+
+	gateway.RegisterMetrics(cfg.AppVersion, cfg.DBPool)
 
 	basicAuthMiddleware := gateway.BasicAuthMiddleware(cfg.BasicAuthUser, cfg.BasicAuthPass)
 	var userProvider logic.UserGetter = cfg.UserService
@@ -75,6 +81,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	// Root welcome route
 	r.Get("/", WelcomeHandler)
 
+	// Operational metrics endpoint protected by Gateway BasicAuthMiddleware
+	r.With(basicAuthMiddleware).Get("/debug/vars", expvar.Handler().ServeHTTP)
+
 	// 2. Versioned API routes under /v1 prefix
 	r.Route("/v1", func(v1 chi.Router) {
 		// Tooling route group: protected by Gateway BasicAuthMiddleware
@@ -83,6 +92,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 			tooling.Get("/health", HealthHandler)
 			tooling.Get("/swagger/*", httpSwagger.WrapHandler)
+			tooling.Get("/debug/vars", expvar.Handler().ServeHTTP)
 			tooling.Get("/debug/panic", func(w http.ResponseWriter, r *http.Request) {
 				panic("deliberate test panic for recovery middleware verification")
 			})
