@@ -1,7 +1,7 @@
 DB_URL ?= "postgres://postgres:password@localhost:5433/golearning?sslmode=disable"
 MIGRATIONS_PATH ?= "file://migrations"
 
-.PHONY: migrate-up migrate-down sqlc-generate test vet seed gen-docs
+.PHONY: migrate-up migrate-down sqlc-generate test test-race vet seed gen-docs
 
 migrate-up:
 	go run ./cmd/migrate -direction=up -db-url=$(DB_URL) -path=$(MIGRATIONS_PATH)
@@ -14,6 +14,9 @@ sqlc-generate:
 
 test:
 	go test -v ./...
+
+test-race:
+	go test -v -race ./...
 
 vet:
 	go vet ./...
