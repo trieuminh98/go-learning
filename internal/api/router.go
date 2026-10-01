@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	"github.com/go-playground/validator/v10"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.uber.org/zap"
@@ -27,6 +28,7 @@ type RouterConfig struct {
 	UserRepo      logic.UserRepository
 	RoleRepo      logic.RoleRepository
 	RateLimiter   gateway.RateLimiter
+	CORSOrigins   []string
 }
 
 // NewRouter builds and returns the application HTTP handler using Chi.
@@ -53,6 +55,19 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	// 1. Gateway global cross-cutting middleware stack
 	r.Use(gateway.RecoveryMiddleware(cfg.Logger))
 	r.Use(gateway.RequestIDMiddleware)
+
+	// 2. CORS middleware (runs before RateLimit & Auth so preflights do not exhaust quota and 429 carries CORS headers)
+	if len(cfg.CORSOrigins) > 0 {
+		r.Use(cors.Handler(cors.Options{
+			AllowedOrigins:   cfg.CORSOrigins,
+			AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Request-ID"},
+			ExposedHeaders:   []string{"Link", "Retry-After", "X-Request-ID"},
+			AllowCredentials: false,
+			MaxAge:           300,
+		}))
+	}
+
 	r.Use(gateway.RateLimitMiddleware(cfg.RateLimiter, cfg.Logger))
 	r.Use(gateway.LoggingMiddleware(cfg.Logger))
 	r.Use(gateway.TimeoutMiddleware(10 * time.Second))

@@ -3,6 +3,7 @@ package env
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -61,4 +62,24 @@ func GetDuration(key string, fallback time.Duration) time.Duration {
 		return time.Duration(sec) * time.Second
 	}
 	return fallback
+}
+
+// GetStringSlice retrieves the environment variable value for key parsed as a comma-separated slice.
+// If the variable is unset, empty, or whitespace-only, fallback is returned.
+func GetStringSlice(key string, fallback []string) []string {
+	val, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(val) == "" {
+		return fallback
+	}
+	parts := strings.Split(val, ",")
+	var result []string
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	if len(result) == 0 {
+		return fallback
+	}
+	return result
 }

@@ -64,6 +64,11 @@ type RateLimitConfig struct {
 	Window   time.Duration
 }
 
+// CORSConfig holds Cross-Origin Resource Sharing configuration.
+type CORSConfig struct {
+	AllowedOrigins []string
+}
+
 // Config holds runtime configuration parameters for the application.
 type Config struct {
 	Addr            string
@@ -75,6 +80,7 @@ type Config struct {
 	Auth            AuthConfig
 	Redis           RedisConfig
 	RateLimit       RateLimitConfig
+	CORS            CORSConfig
 }
 
 // Application holds runtime dependencies and application lifecycle methods.
@@ -137,6 +143,7 @@ func (app *Application) routes() http.Handler {
 		UserRepo:      app.userRepo,
 		RoleRepo:      app.roleRepo,
 		RateLimiter:   app.rateLimiter,
+		CORSOrigins:   app.config.CORS.AllowedOrigins,
 	})
 }
 
@@ -277,7 +284,14 @@ func main() {
 			Requests: env.GetInt("RATE_LIMIT_REQUESTS", 20),
 			Window:   env.GetDuration("RATE_LIMIT_WINDOW", 5*time.Second),
 		},
+		CORS: CORSConfig{
+			AllowedOrigins: env.GetStringSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
+		},
 	}
+
+	logger.Infow("cors configuration loaded",
+		"allowed_origins", cfg.CORS.AllowedOrigins,
+	)
 
 	if appEnv == "production" {
 		if cfg.Auth.BasicUser == "admin" && cfg.Auth.BasicPass == "admin" {
@@ -285,6 +299,11 @@ func main() {
 		}
 		if cfg.Auth.JWTSecret == "0123456789abcdef0123456789abcdef" {
 			logger.Fatalw("cannot use default jwt secret in production environment")
+		}
+		for _, origin := range cfg.CORS.AllowedOrigins {
+			if origin == "*" {
+				logger.Warnw("wildcard '*' CORS allowed origin in production environment is insecure")
+			}
 		}
 	}
 
