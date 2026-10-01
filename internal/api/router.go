@@ -26,6 +26,7 @@ type RouterConfig struct {
 	Authenticator logic.Authenticator
 	UserRepo      logic.UserRepository
 	RoleRepo      logic.RoleRepository
+	RateLimiter   gateway.RateLimiter
 }
 
 // NewRouter builds and returns the application HTTP handler using Chi.
@@ -52,6 +53,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	// 1. Gateway global cross-cutting middleware stack
 	r.Use(gateway.RecoveryMiddleware(cfg.Logger))
 	r.Use(gateway.RequestIDMiddleware)
+	r.Use(gateway.RateLimitMiddleware(cfg.RateLimiter, cfg.Logger))
 	r.Use(gateway.LoggingMiddleware(cfg.Logger))
 	r.Use(gateway.TimeoutMiddleware(10 * time.Second))
 

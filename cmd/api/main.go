@@ -21,6 +21,7 @@ import (
 	"go-learning/internal/db"
 	generated "go-learning/internal/db/generated"
 	"go-learning/internal/env"
+	"go-learning/internal/gateway"
 	"go-learning/internal/logic"
 	"go-learning/internal/mailer"
 	"go-learning/internal/repository"
@@ -56,6 +57,13 @@ type RedisConfig struct {
 	UserCacheTTL time.Duration
 }
 
+// RateLimitConfig holds rate limiting configuration.
+type RateLimitConfig struct {
+	Enabled  bool
+	Requests int
+	Window   time.Duration
+}
+
 // Config holds runtime configuration parameters for the application.
 type Config struct {
 	Addr            string
@@ -66,6 +74,7 @@ type Config struct {
 	DB              DBConfig
 	Auth            AuthConfig
 	Redis           RedisConfig
+	RateLimit       RateLimitConfig
 }
 
 // Application holds runtime dependencies and application lifecycle methods.
@@ -78,6 +87,7 @@ type Application struct {
 	authenticator logic.Authenticator
 	userRepo      logic.UserRepository
 	roleRepo      logic.RoleRepository
+	rateLimiter   gateway.RateLimiter
 	validator     *validator.Validate
 	logger        *zap.SugaredLogger
 }
@@ -92,6 +102,7 @@ func NewApplication(
 	authenticator logic.Authenticator,
 	userRepo logic.UserRepository,
 	roleRepo logic.RoleRepository,
+	rateLimiter gateway.RateLimiter,
 	validator *validator.Validate,
 	logger *zap.SugaredLogger,
 ) *Application {
@@ -104,6 +115,7 @@ func NewApplication(
 		authenticator: authenticator,
 		userRepo:      userRepo,
 		roleRepo:      roleRepo,
+		rateLimiter:   rateLimiter,
 		validator:     validator,
 		logger:        logger,
 	}
@@ -124,6 +136,7 @@ func (app *Application) routes() http.Handler {
 		Authenticator: app.authenticator,
 		UserRepo:      app.userRepo,
 		RoleRepo:      app.roleRepo,
+		RateLimiter:   app.rateLimiter,
 	})
 }
 
@@ -259,6 +272,11 @@ func main() {
 			DB:           env.GetInt("REDIS_DB", 0),
 			UserCacheTTL: env.GetDuration("CACHE_USER_TTL", 15*time.Minute),
 		},
+		RateLimit: RateLimitConfig{
+			Enabled:  env.GetBool("RATE_LIMIT_ENABLED", false),
+			Requests: env.GetInt("RATE_LIMIT_REQUESTS", 20),
+			Window:   env.GetDuration("RATE_LIMIT_WINDOW", 5*time.Second),
+		},
 	}
 
 	if appEnv == "production" {
@@ -367,10 +385,24 @@ func main() {
 	// 6. Initialize shared request validator
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
-	// 7. Instantiate Application composition root
-	app := NewApplication(cfg, userService, truckService, postService, feedService, jwtAuth, storage.Users, storage.Roles, validate, logger)
+	// 7. Initialize rate limiter
+	var rateLimiter gateway.RateLimiter
+	if cfg.RateLimit.Enabled {
+		fixedLimiter := gateway.NewFixedWindowLimiter(cfg.RateLimit.Requests, cfg.RateLimit.Window)
+		defer fixedLimiter.Stop()
+		rateLimiter = fixedLimiter
+		logger.Infow("rate limiter enabled",
+			"requests", cfg.RateLimit.Requests,
+			"window", cfg.RateLimit.Window,
+		)
+	} else {
+		logger.Infow("rate limiter is disabled (RATE_LIMIT_ENABLED=false)")
+	}
 
-	// 8. Start server
+	// 8. Instantiate Application composition root
+	app := NewApplication(cfg, userService, truckService, postService, feedService, jwtAuth, storage.Users, storage.Roles, rateLimiter, validate, logger)
+
+	// 9. Start server
 	if err := app.run(); err != nil {
 		logger.Fatalw("server failure", "error", err)
 	}
