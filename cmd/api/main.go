@@ -315,7 +315,8 @@ func main() {
 		}
 	}
 
-	// Configure Swagger host dynamically from runtime environment
+	// Configure Swagger host and version dynamically from runtime environment
+	docs.SwaggerInfo.Version = cfg.Version
 	if apiHost := env.GetString("API_HOST", ""); apiHost != "" {
 		docs.SwaggerInfo.Host = apiHost
 	} else if cfg.Addr != "" && cfg.Addr[0] == ':' {
