@@ -21,3 +21,5 @@ Thumbs.db
 .env
 .env.*
 !.envrc.example
+.neon
+node_modules/
